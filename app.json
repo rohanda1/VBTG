@@ -1,27 +1,20 @@
 {
   "expo": {
     "name": "VBTG_GO",
-    "slug": "VBTG_GO",
+    "slug": "vbtg_go",
     "version": "1.0.0",
-    "orientation": "portrait",
-    "icon": "./assets/icon.png",
-    "userInterfaceStyle": "light",
-    "splash": {
-      "image": "./assets/splash.png",
-      "resizeMode": "contain",
-      "backgroundColor": "#ffffff"
+    "platforms": ["ios", "android", "web"],
+    "android": {
+      "package": "com.rohanda.Nano33BLEExample"
     },
     "ios": {
-      "supportsTablet": true
+      "bundleIdentifier": "com.rohanda.Nano33BLEExample"
     },
-    "android": {
-      "adaptiveIcon": {
-        "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#ffffff"
+    "extra": {
+      "eas": {
+        "projectId": "5a3b4daa-c201-439d-9f32-7e89703fc19f"
       }
-    },
-    "web": {
-      "favicon": "./assets/favicon.png"
     }
   }
 }
+

@@ -1,0 +1,19 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    
+    {
+      "name": "Debug iOS",
+      "program": "${workspaceFolder}/.vscode/app.tsx",
+      "type": "reactnative",
+      "request": "launch",
+      "platform": "ios",
+      "target": "device",
+      "sourceMaps": true,
+      "outDir": "${workspaceFolder}/.vscode/.react",
+      "runArguments": [
+        "--no-packager"
+      ]
+    }
+  ]
+}
