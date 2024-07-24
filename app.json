@@ -3,7 +3,11 @@
     "name": "VBTG_GO",
     "slug": "vbtg_go",
     "version": "1.0.0",
-    "platforms": ["ios", "android", "web"],
+    "platforms": [
+      "ios",
+      "android",
+      "web"
+    ],
     "android": {
       "package": "com.rohanda.Nano33BLEExample"
     },
@@ -14,7 +18,8 @@
       "eas": {
         "projectId": "5a3b4daa-c201-439d-9f32-7e89703fc19f"
       }
-    }
-  }
+    },
+    "sdkVersion": "49.0.0"
+  },
+  "name": "vbtg_go"
 }
-

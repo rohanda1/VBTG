@@ -1,0 +1,6 @@
+{
+    "react-native-tools": {
+      "projectRoot": "/Users/rohan/VBTG_GO",
+      "runArguments": ["--no-packager"]
+    }
+  }

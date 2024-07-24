@@ -2,19 +2,29 @@
   "version": "0.2.0",
   "configurations": [
     
-    
     {
       "name": "Debug iOS",
-      "program": "${workspaceFolder}/.vscode/app.tsx",
+//      "program": "${workspaceFolder}/.vscode/app.tsx",
+ //     "program": "${workspaceFolder}/index.tsx",
+      "program": "${workspaceFolder}/App.tsx",
       "type": "reactnative",
       "request": "launch",
       "platform": "ios",
       "target": "device",
       "sourceMaps": true,
       "outDir": "${workspaceFolder}/.vscode/.react",
+      "expoHostType": "tunnel",
       "runArguments": [
         "--no-packager"
       ]
+    },
+    {
+      "name": "Debug Expo",
+      "type": "reactnative",
+      "request": "launch",
+      "platform": "expo",
+      "sourceMaps": true,
+      "outDir": "${workspaceFolder}/.vscode/.react"
     }
   ]
 }
