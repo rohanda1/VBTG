@@ -3,23 +3,22 @@
     "name": "VBTG_GO",
     "slug": "vbtg_go",
     "version": "1.0.0",
-    "platforms": [
-      "ios",
-      "android",
-      "web"
-    ],
+    "platforms": ["ios", "android", "web"],
     "android": {
-      "package": "com.rohanda.Nano33BLEExample"
+      "package": "com.rohanda.Nano33BLEExample",
+      "permissions": ["ACCESS_FINE_LOCATION", "BLUETOOTH", "BLUETOOTH_ADMIN"]
     },
     "ios": {
-      "bundleIdentifier": "com.rohanda.Nano33BLEExample"
+      "bundleIdentifier": "com.rohanda.Nano33BLEExample",
+      "infoPlist": {
+        "NSBluetoothAlwaysUsageDescription": "This app uses Bluetooth to connect to devices.",
+        "NSLocationWhenInUseUsageDescription": "This app needs access to your location to scan for Bluetooth devices."
+      }
     },
     "extra": {
       "eas": {
         "projectId": "5a3b4daa-c201-439d-9f32-7e89703fc19f"
       }
-    },
-    "sdkVersion": "49.0.0"
-  },
-  "name": "vbtg_go"
+    }
+  }
 }

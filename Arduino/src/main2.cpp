@@ -49,7 +49,8 @@ float readZAcceleration() {
 void setup() {
   Wire.begin();
   Serial.begin(115200);
-  
+  while (!Serial); // Wait for the serial monitor to open
+  Serial.println("Starting setup...");
   delay(2);
   for (int i = 3; i < 7; i++) {
     TCA9544A(i);
@@ -59,9 +60,9 @@ void setup() {
   //  uint8_t temp = hapDrive._readRegister(CHIP_REV_REG); 
   //  Serial.println(temp);
     if (!hapDrive.defaultMotor()) {
-      Serial.println("Could not set default settings.");
+      printf("Could not set default settings.");
     } else {
-      Serial.println("Ready.");
+      printf("Ready.");
     }
 
   //  initializeIIM42351();
@@ -135,12 +136,14 @@ void loop() {
         hapDrive.clearIrq(event);        // Clearing error 
         hapDrive.setVibrate(127);
         float zAcceleration = readZAcceleration();
+        /*
         Serial.print("Z Acceleration: "); 
         Serial.print(zAcceleration); 
         Serial.println(" g");
         Serial.print("Z Acceleration (16-bit binary): ");
         Serial.print(zAcceleration, BIN);
         Serial.println(" g");
+        */
       }
       while (millis() - previousMillis > interval) {
         hapDrive.setVibrate(0);

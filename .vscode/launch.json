@@ -12,7 +12,7 @@
       "platform": "ios",
       "target": "device",
       "sourceMaps": true,
-      "outDir": "${workspaceFolder}/.vscode/.react",
+//      "outDir": "${workspaceFolder}/.vscode/.react",
       "expoHostType": "tunnel",
       "runArguments": [
         "--no-packager"
