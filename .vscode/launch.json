@@ -6,7 +6,7 @@
       "name": "Debug iOS",
 //      "program": "${workspaceFolder}/.vscode/app.tsx",
  //     "program": "${workspaceFolder}/index.tsx",
-      "program": "${workspaceFolder}/App.tsx",
+      "program": "${workspaceFolder}/BLEconnectdemo.tsx",
       "type": "reactnative",
       "request": "launch",
       "platform": "ios",

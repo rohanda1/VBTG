@@ -80,6 +80,7 @@ void setup() {
   }
   // Set device name
   BLE.setLocalName("Nano33BLEExample");
+  Serial.println("Local name set to Nano33BLEExample.");
   BLE.setAdvertisedService(customService);
 
   // Add characteristics to the service
