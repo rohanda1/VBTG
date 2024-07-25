@@ -11,7 +11,7 @@ import {
 import base64 from 'react-native-base64';
 import CheckBox from '@react-native-community/checkbox';
 import {BleManager, Device} from 'react-native-ble-plx';
-import { styles } from './Styles/styles';
+import { styles } from '../Styles/styles';
 //import {styles} from 'Styles/styles';
 import {LogBox} from 'react-native';
 import * as Permissions from 'expo-permissions';
@@ -98,10 +98,54 @@ export default function App() {
           setIsConnected(false);
         });
 
+        // Read initial values
+        device.monitorCharacteristicForService(
+          SERVICE_UUID,
+          BUTTON_UUID,
+          (error, characteristic) => {
+            if (characteristic?.value != null) {
+              setButtonPressed(base64.decode(characteristic.value) === '1');
+              console.log('Button press update received:', base64.decode(characteristic.value));
+            }
+          },
+          'buttonTransaction',
+        );
+
         console.log('Connection established');
       })
       .catch(error => {
         console.error('Connection error:', error);
       });
   }
+
+  return (
+    <View>
+      <View style={{ paddingBottom: 200 }}></View>
+
+      {/* Title */}
+      <View style={styles.rowView}>
+        <Text style={styles.titleText}>BLE Example</Text>
+      </View>
+
+      <View style={{ paddingBottom: 20 }}></View>
+
+      {/* Connect Button */}
+      <View style={styles.rowView}>
+        <TouchableOpacity style={{ width: 120 }}>
+          {!isConnected ? (
+            <Button title="Connect" onPress={scanDevices} disabled={false} />
+          ) : (
+            <Button title="Disconnect" onPress={disconnectDevice} disabled={false} />
+          )}
+        </TouchableOpacity>
+      </View>
+
+      <View style={{ paddingBottom: 20 }}></View>
+
+      {/* Button Press Status */}
+      <View style={styles.rowView}>
+        <Text style={styles.baseText}>{ButtonPressed ? 'Button Pressed' : 'Button Not Pressed'}</Text>
+      </View>
+    </View>
+  );
 }

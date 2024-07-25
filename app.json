@@ -6,7 +6,8 @@
     "platforms": [
       "ios",
       "android",
-      "web"
+      "web",
+      "expo"
     ],
     "android": {
       "package": "com.rohanda.Nano33BLEExample",

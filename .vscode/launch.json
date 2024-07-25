@@ -3,28 +3,28 @@
   "configurations": [
     
     {
-      "name": "Debug iOS",
-//      "program": "${workspaceFolder}/.vscode/app.tsx",
- //     "program": "${workspaceFolder}/index.tsx",
-      "program": "${workspaceFolder}/BLEconnectdemo.tsx",
+      "name": "Debug in exponent",
+      "cwd": "${workspaceFolder}",
       "type": "reactnative",
       "request": "launch",
-      "platform": "ios",
-      "target": "device",
+      "platform": "exponent",
       "sourceMaps": true,
-//      "outDir": "${workspaceFolder}/.vscode/.react",
+      "outDir": "${workspaceFolder}/.vscode/.react",
+      "program": "${workspaceFolder}/AppEntry.js",
       "expoHostType": "tunnel",
       "runArguments": [
         "--no-packager"
       ]
-    },
+    }
+    /*
     {
       "name": "Debug Expo",
       "type": "reactnative",
       "request": "launch",
-      "platform": "expo",
+      "platform": "exponent",
       "sourceMaps": true,
       "outDir": "${workspaceFolder}/.vscode/.react"
     }
+    */
   ]
 }
