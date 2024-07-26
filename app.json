@@ -1,7 +1,7 @@
 {
   "expo": {
     "name": "VBTG_GO",
-    "slug": "vbtg_go",
+    "slug": "vbtggo",
     "version": "1.0.0",
     "platforms": [
       "ios",
@@ -10,7 +10,7 @@
       "expo"
     ],
     "android": {
-      "package": "com.rohanda.Nano33BLEExample",
+      "package": "com.rohanda.vbtggo",
       "permissions": [
         "ACCESS_FINE_LOCATION",
         "BLUETOOTH",
@@ -18,7 +18,7 @@
       ]
     },
     "ios": {
-      "bundleIdentifier": "com.rohanda.Nano33BLEExample",
+      "bundleIdentifier": "com.rohanda.vbtggo",
       "infoPlist": {
         "NSBluetoothAlwaysUsageDescription": "This app uses Bluetooth to connect to devices.",
         "NSLocationWhenInUseUsageDescription": "This app needs access to your location to scan for Bluetooth devices."
@@ -26,10 +26,11 @@
     },
     "extra": {
       "eas": {
-        "projectId": "5a3b4daa-c201-439d-9f32-7e89703fc19f"
+        "projectId": "f73d5fe4-bb74-4d0d-b255-c2b1fbeb4389"
       }
     },
-    "sdkVersion": "51.0.0"
+    "sdkVersion": "51.0.0",
+    "entryPoint": ".vscode/exponentIndex.js"
   },
   "name": "vbtg_go"
 }
