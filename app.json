@@ -19,6 +19,7 @@
     },
     "ios": {
       "bundleIdentifier": "com.rohanda.vbtggo",
+      "buildConfiguration": "AdHoc",
       "infoPlist": {
         "NSBluetoothAlwaysUsageDescription": "This app uses Bluetooth to connect to devices.",
         "NSLocationWhenInUseUsageDescription": "This app needs access to your location to scan for Bluetooth devices."

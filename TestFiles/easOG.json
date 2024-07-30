@@ -11,9 +11,6 @@
       "distribution": "internal"
     },
     "production": {
-      "ios": {
-        "distribution": "internal",
-        "enterpriseProvisioning": "adhoc"
       }
     }
   },
