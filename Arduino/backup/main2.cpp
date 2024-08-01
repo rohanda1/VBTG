@@ -15,11 +15,11 @@
 Haptic_Driver hapDrive;
 
 // BLE SECTION
-BLEService customService("4fafc201-1fb5-459e-8fcc-c5c9c331914b"); //Service UUID
+BLEService customService("4fafc201-1fb5-459e-8fcc-c5c9c331914b");
 
-BLECharacteristic messageCharacteristic("6d68efe5-04b6-4a85-abc4-c2670b7bf7fd", //Message UUID
+BLECharacteristic messageCharacteristic("6d68efe5-04b6-4a85-abc4-c2670b7bf7fd", 
                                        BLERead | BLEWrite | BLENotify, 20);
-BLECharacteristic boxCharacteristic("f27b53ad-c63d-49a0-8c0f-9f297e6cc520", //Button UUID
+BLECharacteristic boxCharacteristic("f27b53ad-c63d-49a0-8c0f-9f297e6cc520", 
                                     BLERead | BLEWrite | BLENotify, 20);
 int event = 0;
 int bus = 0;
@@ -105,29 +105,67 @@ void loop() {
   // Keep checking BLE central connection
   BLE.poll();
   // Read the current value of the box characteristic
-  uint8_t boxValue[2] = {0}; // Initialize the boxValue array with a default value
-  boxCharacteristic.readValue(boxValue, 1); // Read the value of the box characteristic into the boxValue array
-  Serial.print("boxValue[0]: ");
-  Serial.println(boxValue[0]);
-//  boxValue[0] = 1;
-
-  // Check if the button is pressed by comparing the first element of boxValue to 1
+  uint8_t boxValue[2]={1};
+  boxCharacteristic.readValue(boxValue, 1);
   bool isButtonPressed = (boxValue[0] == '1');
-  Serial.print("isButtonPressed: ");
-  Serial.println(isButtonPressed);
 
-  delay(1000);
   if (isButtonPressed) {
     Serial.println("Button is pressed. Pausing the loop...");
     while (isButtonPressed) {
       // Keep checking if the button is released
       boxCharacteristic.readValue(boxValue, 1);
       isButtonPressed = (boxValue[0] == '1');
-      delay(1000);  // Add a small delay to avoid busy-waiting
+      delay(100);  // Add a small delay to avoid busy-waiting
     }
-    delay(1000);
     Serial.println("Button is released. Resuming the loop...");
   }
+
+  
+  int exclusion[4];
+  int bus_count = 0;
+
+  while (bus_count < 4) {
+    int randbus = random(3, 7);
+    bool isDuplicate = false;
+    for (int i = 0; i < bus_count; i++) {
+      if (randbus == exclusion[i]) {
+        isDuplicate = true;
+        break; // Exit the loop if a duplicate is found
+      }
+    }
+    if (!isDuplicate) {
+      TCA9544A(randbus);
+      while (millis() - previousMillis < interval) {
+        event = hapDrive.getIrqEvent();  // If uploading often the Haptic Driver IC will throw a fault
+        hapDrive.clearIrq(event);        // Clearing error 
+        hapDrive.setVibrate(127);
+        float zAcceleration = readZAcceleration();
+        /*
+        Serial.print("Z Acceleration: "); 
+        Serial.print(zAcceleration); 
+        Serial.println(" g");
+        Serial.print("Z Acceleration (16-bit binary): ");
+        Serial.print(zAcceleration, BIN);
+        Serial.println(" g");
+        */
+      }
+      while (millis() - previousMillis > interval) {
+        hapDrive.setVibrate(0);
+        delay(30);
+        previousMillis = millis(); // Save the last time LRA was triggered
+      }
+      exclusion[bus_count] = randbus;
+      bus_count++;
+    }
+  }
+  cycle_count++;
+  if (cycle_count % 3 == 0) {
+    delay(1500);
+    previousMillis = millis(); // Reset previousMillis
+  }
+  
+  //insert callout to pause loop if button is pressed in app.tsx code
+  
 }
 
 
