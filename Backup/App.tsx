@@ -10,12 +10,11 @@ import { BleManager, Device } from 'react-native-ble-plx';
 import * as Location from 'expo-location';
 import { styles } from './Styles/styles';
 import { registerRootComponent } from 'expo';
-import base64 from 'react-native-base64';
 
 const BLTManager = new BleManager();
 
-const TARGET_SERVICE_UUID = '4fafc201-1fb5-459e-8fcc-c5c9c331914b';
-const TARGET_BUTTON_UUID = 'f27b53ad-c63d-49a0-8c0f-9f297e6cc520';
+const SERVICE_UUID = '4fafc201-1fb5-459e-8fcc-c5c9c331914b';
+const BUTTON_UUID = 'f27b53ad-c63d-49a0-8c0f-9f297e6cc520';
 
 if (__DEV__) {
   console.log('Running in development mode');
@@ -29,7 +28,7 @@ function App() {
   const [ButtonPressed, setButtonPressed] = useState(false);
 
   async function scanDevices() {
-    const { status } = await Location.requestForegroundPermissionsAsync();
+    const { status } = await Location.requestForegroundPermissionsAsync(); //see if location services are enabled
     console.log('Permissions status:', status);
 
     if (status !== 'granted') {
@@ -39,18 +38,18 @@ function App() {
 
     console.log('Scanning for devices');
 
-    BLTManager.startDeviceScan([TARGET_SERVICE_UUID], null, (error, scannedDevice) => {
+    BLTManager.startDeviceScan([SERVICE_UUID], null, (error, scannedDevice) => { //scan devices based on required service_UUID
       if (error) {
         console.warn('Device scan error:', error);
         return;
       }
 
-      if (scannedDevice?.name && scannedDevice.serviceUUIDs?.includes(TARGET_SERVICE_UUID)) {
+      if (scannedDevice?.name && scannedDevice.serviceUUIDs?.includes(SERVICE_UUID)) { //connect to correct service UUID
         console.log('Target device found:', scannedDevice.name);
         BLTManager.stopDeviceScan();
         connectDevice(scannedDevice);
       } else if (scannedDevice) {
-        console.log('Found device:', scannedDevice.name || 'Unnamed Device');
+        console.log('Found device:', scannedDevice.name || 'Unnamed Device'); //log incorrect scanned devices found
         console.log('Service UUIDs:', scannedDevice.serviceUUIDs);
       }
     });
@@ -64,7 +63,7 @@ function App() {
 
   async function connectDevice(device: Device) {
     console.log('Connecting to Device:', device.name);
-
+    console.log('Connecting to DeviceID:', device.serviceUUIDs);
     device
       .connect()
       .then(device => {
@@ -75,36 +74,22 @@ function App() {
       .then(device => {
         console.log('Connection established');
 
-        // Check if the connected device has the desired service
-        if (device.serviceUUIDs?.includes(TARGET_SERVICE_UUID)) {
-          console.log('Target service UUID found on device:', device.name);
+        BLTManager.onDeviceDisconnected(device.id, (error, device) => {
+          console.log('Device disconnected');
+          setIsConnected(false);
+        });
 
-          BLTManager.onDeviceDisconnected(device.id, (error, device) => {
-            if (error) {
-              console.log('Device disconnected with error:', error.message);
-            } else {
-              console.log('Device disconnected');
+        device.monitorCharacteristicForService(
+          SERVICE_UUID,
+          BUTTON_UUID,
+          (error, characteristic) => {
+            if (characteristic?.value != null) {
+              setButtonPressed(base64.decode(characteristic.value) === '1');
+              console.log('Button press update received:', base64.decode(characteristic.value));
             }
-            setIsConnected(false);
-            setConnectedDevice(null);
-          });
-
-          device.monitorCharacteristicForService(
-            TARGET_SERVICE_UUID,
-            TARGET_BUTTON_UUID,
-            (error, characteristic) => {
-              if (characteristic?.value != null) {
-                setButtonPressed(base64.decode(characteristic.value) === '1');
-                console.log('Button press update received:', base64.decode(characteristic.value));
-              }
-            },
-            'buttonTransaction'
-          );
-        } else {
-          console.warn('Connected device does not have the target service UUID');
-          // Optionally, disconnect from this device if it doesn't have the expected service
-          disconnectDevice();
-        }
+          },
+          'buttonTransaction'
+        );
       })
       .catch(error => {
         console.error('Connection error:', error);
@@ -117,15 +102,11 @@ function App() {
     if (connectedDevice !== null) {
       try {
         await connectedDevice.cancelConnection();
-        console.log('Device disconnected successfully');
+        console.log('Device disconnected');
         setIsConnected(false);
         setConnectedDevice(null);
       } catch (error) {
-        if (error.errorCode === 201) {
-          console.warn('Device was already disconnected or disconnected by the system.');
-        } else {
-          console.error('Unexpected disconnection error:', error);
-        }
+        console.error('Error disconnecting:', error);
       }
     }
   }
