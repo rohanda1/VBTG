@@ -56,61 +56,184 @@ function App() {
     });
 
     // Stop scanning devices after 10 seconds
+    
     setTimeout(() => {
-      console.log('Stopping device scan due to timeout');
+      console.log('Stopping device scan');
       BLTManager.stopDeviceScan();
-    }, 10000); // 10 seconds timeout
+    }, 2000); // 2 seconds timeout
+    
   }
 
   async function connectDevice(device: Device) {
     console.log('Connecting to Device:', device.name);
-
-    device
-      .connect()
-      .then(device => {
-        setConnectedDevice(device);
-        setIsConnected(true);
-        return device.discoverAllServicesAndCharacteristics();
-      })
-      .then(device => {
-        console.log('Connection established');
-
-        // Check if the connected device has the desired service
-        if (device.serviceUUIDs?.includes(TARGET_SERVICE_UUID)) {
-          console.log('Target service UUID found on device:', device.name);
-
-          BLTManager.onDeviceDisconnected(device.id, (error, device) => {
-            if (error) {
-              console.log('Device disconnected with error:', error.message);
-            } else {
-              console.log('Device disconnected');
+    console.log('Connecting to DeviceID', device.serviceUUIDs);
+  
+    try {
+      await device.connect();
+      console.log('Proceeding to connect device');
+      setConnectedDevice(device);
+      setIsConnected(true);
+  
+  // Add a brief delay to ensure the services are fully initialized
+ //     console.log('Waiting briefly to allow services to initialize...');
+ //     await new Promise(resolve => setTimeout(resolve, 1000)); // 1-second delay
+  
+      await device.discoverAllServicesAndCharacteristics();
+      console.log('Connection established');
+      setupDisconnectionHandler(device);
+      // Check if the connected device has the desired service
+      const services = await device.services();
+      const hasTargetService = services.some(service => service.uuid === TARGET_SERVICE_UUID);
+  
+      if (hasTargetService) {
+        console.log('Target service UUID found on device:', device.name);
+  
+        device.monitorCharacteristicForService(
+          TARGET_SERVICE_UUID,
+          TARGET_BUTTON_UUID,
+          (error, characteristic) => {
+            if (characteristic?.value != null) {
+              setButtonPressed(base64.decode(characteristic.value) === '1');
+              console.log('Button press update received:', base64.decode(characteristic.value));
             }
-            setIsConnected(false);
-            setConnectedDevice(null);
-          });
+          },
+          'buttonTransaction'
+        );
+      } else {
+        console.warn('Connected device does not have the target service UUID');
+        disconnectDevice(); // Optionally disconnect if service UUID doesn't match
+      }
+    } catch (error) {
+      console.error('Connection error:', error);
+    }
+  }
+  
 
-          device.monitorCharacteristicForService(
-            TARGET_SERVICE_UUID,
-            TARGET_BUTTON_UUID,
-            (error, characteristic) => {
-              if (characteristic?.value != null) {
-                setButtonPressed(base64.decode(characteristic.value) === '1');
-                console.log('Button press update received:', base64.decode(characteristic.value));
-              }
-            },
-            'buttonTransaction'
-          );
-        } else {
-          console.warn('Connected device does not have the target service UUID');
-          // Optionally, disconnect from this device if it doesn't have the expected service
-          disconnectDevice();
-        }
-      })
-      .catch(error => {
-        console.error('Connection error:', error);
-      });
+  async function sendPauseCommand() {
+    if (connectedDevice) {
+      console.log('Sending pause command');
+      console.log('Connected Device ID pre pause:', connectedDevice.id);
+
+      await connectedDevice.writeCharacteristicWithResponseForService(
+        TARGET_SERVICE_UUID,
+        TARGET_BUTTON_UUID,
+        base64.encode('1') // Send '1' to indicate pause
+      );
+      setButtonPressed(true);
+      console.log('Connected Device ID post pause:', connectedDevice.id);
+    }
   }
 
+  async function reconnectDevice() {
+    if (connectedDevice && !connectedDevice.isConnected()) {
+      try {
+        console.log('Reconnecting to device...');
+        await connectedDevice.connect();
+        console.log('Reconnection successful');
+        await new Promise(resolve => setTimeout(resolve, 2000)); // 2-second delay
+        await connectedDevice.discoverAllServicesAndCharacteristics();
+      } catch (error) {
+        console.error('Failed to reconnect:', error);
+        return false; // Indicate that reconnection failed
+      }
+    }
+    return true; // Indicate that the device is connected (or reconnection was successful)
+  }
+/*  
+  async function reconnectDevice() {
+    if (connectedDevice && !connectedDevice.isConnected()) {
+      try {
+        console.log('Reconnecting to device...');
+        await connectedDevice.connect();
+        console.log('Reconnection successful');
+        await connectedDevice.discoverAllServicesAndCharacteristics();
+      } catch (error) {
+        console.error('Failed to reconnect:', error);
+        return false; // Indicate that reconnection failed
+      }
+    }
+    return true; // Indicate that the device is connected (or reconnection was successful)
+  }
+*/
+  function setupDisconnectionHandler(device: Device) {
+    device.onDisconnected((error, device) => {
+      if (error) {
+        console.error('Device disconnected with error:', error.message);
+      } else {
+        console.log('Device disconnected');
+      }
+  
+      setIsConnected(false);
+      setConnectedDevice(null);
+  
+      // Optionally attempt to reconnect immediately
+      reconnectDevice().then(isConnected => {
+        if (isConnected) {
+          console.log('Reconnected after disconnection');
+        } else {
+          console.error('Failed to reconnect after disconnection');
+        }
+      });
+    });
+  }
+
+  async function sendResumeCommand() {
+    if (connectedDevice) {
+      if (!connectedDevice.isConnected()) {
+        console.warn('Device is not connected. Attempting to reconnect...');
+        const isConnected = await reconnectDevice();
+        if (!isConnected) {
+          console.error('Cannot send resume command: device is not connected');
+          return;
+        }
+      }
+  
+      try {
+        console.log('Sending resume command');
+        console.log('Connected Device ID:', connectedDevice.id);
+        const result = await connectedDevice.writeCharacteristicWithResponseForService(
+          TARGET_SERVICE_UUID,
+          TARGET_BUTTON_UUID,
+          base64.encode('0') // Send '0' to indicate resume
+        );
+        console.log('Resume command sent successfully');
+        setButtonPressed(false);
+      } catch (error) {
+        console.error('Failed to send resume command:', error);
+      }
+    } else {
+      console.warn('No connected device found');
+    }
+  }
+/*  
+  async function sendResumeCommand() {
+    if (connectedDevice) {
+      if (!connectedDevice.isConnected()) {
+        console.warn('Device is not connected. Attempting to reconnect...');
+        const isConnected = await reconnectDevice();
+        if (!isConnected) {
+          console.error('Cannot send resume command: failed to reconnect');
+          return;
+        }
+      }
+  
+      try {
+        console.log('Sending resume command');
+        const result = await connectedDevice.writeCharacteristicWithResponseForService(
+          TARGET_SERVICE_UUID,
+          TARGET_BUTTON_UUID,
+          base64.encode('0') // Send '0' to indicate resume
+        );
+        console.log('Resume command sent successfully');
+        setButtonPressed(false);
+      } catch (error) {
+        console.error('Failed to send resume command:', error);
+      }
+    } else {
+      console.warn('No connected device found');
+    }
+  } 
+*/
   async function disconnectDevice() {
     console.log('Disconnecting start');
 
@@ -141,20 +264,32 @@ function App() {
       <View style={{ paddingBottom: 20 }}></View>
 
       <View style={styles.rowView}>
-        <TouchableOpacity style={{ width: 120 }}>
-          {!isConnected ? (
-            <Button title="Connect" onPress={scanDevices} disabled={false} />
-          ) : (
-            <Button title="Disconnect" onPress={disconnectDevice} disabled={false} />
-          )}
-        </TouchableOpacity>
+        {!ButtonPressed ? (
+          <TouchableOpacity style={{ width: 120 }}>
+            {!isConnected ? (
+              <Button title="Connect" onPress={scanDevices} disabled={false} />
+            ) : (
+              <Button title="Pause" onPress={sendPauseCommand} disabled={false} />
+            )}
+          </TouchableOpacity>
+        ) : (
+          <TouchableOpacity style={{ width: 120 }}>
+            <Button title="Resume" onPress={sendResumeCommand} disabled={false} />
+          </TouchableOpacity>
+        )}
       </View>
 
       <View style={{ paddingBottom: 20 }}></View>
 
       <View style={styles.rowView}>
-        <Text style={styles.baseText}>{ButtonPressed ? 'Button Pressed' : 'Button Not Pressed'}</Text>
+        <Text style={styles.baseText}>{ButtonPressed ? 'Paused' : 'Running'}</Text>
       </View>
+
+      {isConnected && (
+        <View style={styles.rowView}>
+          <Button title="Disconnect" onPress={disconnectDevice} disabled={false} />
+        </View>
+      )}
     </View>
   );
 }

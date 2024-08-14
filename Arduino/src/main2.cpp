@@ -79,10 +79,11 @@ void setup() {
   while (1);
   }
   // Set device name
-  BLE.setLocalName("Nano33BLEExample");
-  Serial.println("Local name set to Nano33BLEExample.");
+//  BLE.setLocalName("Nano33BLEExample");
+//  Serial.println("Local name set to Nano33BLEExample.");
+//  BLE.setConnectionInterval(20, 40); // Interval range in units of 1.25ms
+//  BLE.setSupervisionTimeout(500); // Timeout in milliseconds
   BLE.setAdvertisedService(customService);
-
   // Add characteristics to the service
   customService.addCharacteristic(messageCharacteristic);
   customService.addCharacteristic(boxCharacteristic);
@@ -105,30 +106,77 @@ void loop() {
   // Keep checking BLE central connection
   BLE.poll();
   // Read the current value of the box characteristic
-  uint8_t boxValue[2] = {0}; // Initialize the boxValue array with a default value
+  uint8_t boxValue[2]; // Initialize the boxValue array with a default value
   boxCharacteristic.readValue(boxValue, 1); // Read the value of the box characteristic into the boxValue array
   Serial.print("boxValue[0]: ");
   Serial.println(boxValue[0]);
-//  boxValue[0] = 1;
-
   // Check if the button is pressed by comparing the first element of boxValue to 1
   bool isButtonPressed = (boxValue[0] == '1');
   Serial.print("isButtonPressed: ");
   Serial.println(isButtonPressed);
-
-  delay(1000);
   if (isButtonPressed) {
-    Serial.println("Button is pressed. Pausing the loop...");
+    Serial.println("Pause command received. Pausing the loop...");
     while (isButtonPressed) {
-      // Keep checking if the button is released
       boxCharacteristic.readValue(boxValue, 1);
-      isButtonPressed = (boxValue[0] == '1');
+      Serial.print("Reading characteristic value: ");
+      Serial.println(boxValue[0]);
+      if (boxValue[0] == '0') {
+        Serial.println("Resume command received. Resuming the loop...");
+        break; // Exit the loop when the button is released
+      }
       delay(1000);  // Add a small delay to avoid busy-waiting
+      Serial.println("Still paused...");
+
     }
-    delay(1000);
-    Serial.println("Button is released. Resuming the loop...");
   }
+
+  int exclusion[4];
+  int bus_count = 0;
+
+  while (bus_count < 4) {
+    int randbus = random(3, 7);
+    bool isDuplicate = false;
+    for (int i = 0; i < bus_count; i++) {
+      if (randbus == exclusion[i]) {
+        isDuplicate = true;
+        break; // Exit the loop if a duplicate is found
+      }
+    }
+    if (!isDuplicate) {
+      TCA9544A(randbus);
+      while (millis() - previousMillis < interval) {
+        event = hapDrive.getIrqEvent();  // If uploading often the Haptic Driver IC will throw a fault
+        hapDrive.clearIrq(event);        // Clearing error 
+        hapDrive.setVibrate(127);
+        float zAcceleration = readZAcceleration();
+        /*
+        Serial.print("Z Acceleration: "); 
+        Serial.print(zAcceleration); 
+        Serial.println(" g");
+        Serial.print("Z Acceleration (16-bit binary): ");
+        Serial.print(zAcceleration, BIN);
+        Serial.println(" g");
+        */
+      }
+      while (millis() - previousMillis > interval) {
+        hapDrive.setVibrate(0);
+        delay(30);
+        previousMillis = millis(); // Save the last time LRA was triggered
+      }
+      exclusion[bus_count] = randbus;
+      bus_count++;
+    }
+  }
+  cycle_count++;
+  if (cycle_count % 3 == 0) {
+    delay(1500);
+    previousMillis = millis(); // Reset previousMillis
+  }
+  
+  //insert callout to pause loop if button is pressed in app.tsx code
+  
 }
+
 
 
 void initializeIIM42351() {
