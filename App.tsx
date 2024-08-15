@@ -195,10 +195,11 @@ export default function App() {
     if (connectedDevice && isReady) {
       try {
         console.log('Sending amplitude command with value:', amplitude);
+        const amplitudeString = amplitude.toString();
         await connectedDevice.writeCharacteristicWithResponseForService(
           TARGET_SERVICE_UUID,
           TARGET_AMPLITUDE_UUID,
-          base64.encode(amplitude.toString())
+          base64.encode(amplitudeString)
         );
         console.log('Amplitude command sent successfully');
       } catch (error) {

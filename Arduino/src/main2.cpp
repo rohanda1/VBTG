@@ -9,9 +9,8 @@
 #include "Haptic_Driver.h"
 #include "Arduino.h"
 #include <ArduinoBLE.h>
-
+#include <Base64.h>
 #define IIM42351_ADDRESS 0x68 
-
 Haptic_Driver hapDrive;
 
 // BLE SECTION
@@ -103,9 +102,32 @@ void loop() {
   Serial.println("Looping...");
   // Keep checking BLE central connection
   BLE.poll();
-  uint8_t amplitudeValue[2];
+/*
+  uint8_t amplitudeValue[4];
+  messageCharacteristic.readValue(amplitudeValue, sizeof(amplitudeValue));
+  int amplitude = atoi((char*)amplitudeValue);
   Serial.print("Amplitude set to: ");
   Serial.println(amplitudeValue[0]);
+*/
+  // Decode the base64 encoded string
+  uint8_t amplitudeValueEncoded[20];
+  messageCharacteristic.readValue((uint8_t*)amplitudeValueEncoded, sizeof(amplitudeValueEncoded));
+  uint8_t decodedValue[10]; // 2 digits + null terminator
+  int decodedLength = Base64.decode((char*)decodedValue, (char*)amplitudeValueEncoded, strlen((char*)amplitudeValueEncoded));
+
+  if (decodedLength > 0) {
+    int amplitude = atoi((char*)decodedValue); // Convert decoded string to an integer
+
+    if (amplitude >= 0 && amplitude <= 100) {
+      Serial.print("Amplitude set to: ");
+      Serial.println(amplitude);
+      // Set your motor amplitude here
+    } else {
+      Serial.println("Received amplitude is out of range");
+    }
+  } else {
+    Serial.println("Failed to decode amplitude value");
+  }
   // Read the current value of the box characteristic
   uint8_t boxValue[2]; // Initialize the boxValue array with a default value
   boxCharacteristic.readValue(boxValue, 1); // Read the value of the box characteristic into the boxValue array
