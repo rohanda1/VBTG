@@ -258,7 +258,7 @@ function App() {
       <View style={{ paddingBottom: 200 }}></View>
 
       <View style={styles.rowView}>
-        <Text style={styles.titleText}>BLE Example</Text>
+        <Text style={styles.titleText}>VBTG CONTROL</Text>
       </View>
 
       <View style={{ paddingBottom: 20 }}></View>
