@@ -81,8 +81,6 @@ void setup() {
   // Set device name
 //  BLE.setLocalName("Nano33BLEExample");
 //  Serial.println("Local name set to Nano33BLEExample.");
-//  BLE.setConnectionInterval(20, 40); // Interval range in units of 1.25ms
-//  BLE.setSupervisionTimeout(500); // Timeout in milliseconds
   BLE.setAdvertisedService(customService);
   // Add characteristics to the service
   customService.addCharacteristic(messageCharacteristic);
@@ -92,7 +90,7 @@ void setup() {
   BLE.addService(customService);
 
   // Set initial characteristic values
-  messageCharacteristic.writeValue("Message one");
+//  messageCharacteristic.writeValue("Message one");
   boxCharacteristic.writeValue("0");
 
   // Start advertising
@@ -105,6 +103,9 @@ void loop() {
   Serial.println("Looping...");
   // Keep checking BLE central connection
   BLE.poll();
+  uint8_t amplitudeValue[2];
+  Serial.print("Amplitude set to: ");
+  Serial.println(amplitudeValue[0]);
   // Read the current value of the box characteristic
   uint8_t boxValue[2]; // Initialize the boxValue array with a default value
   boxCharacteristic.readValue(boxValue, 1); // Read the value of the box characteristic into the boxValue array

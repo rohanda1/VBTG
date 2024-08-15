@@ -21,6 +21,7 @@
     "@humanwhocodes/config-array": "^0.13.0",
     "@humanwhocodes/object-schema": "^2.0.3",
     "@react-native-community/checkbox": "^0.5.17",
+    "@react-native-community/slider": "^4.5.2",
     "@react-navigation/bottom-tabs": "^6.6.1",
     "@react-navigation/native": "^6.1.18",
     "@types/react": "~18.2.79",

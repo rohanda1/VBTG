@@ -7,6 +7,7 @@ import {
   Text,
 } from 'react-native';
 import { BleManager, Device } from 'react-native-ble-plx';
+import Slider from '@react-native-community/slider';
 import * as Location from 'expo-location';
 import { styles } from './Styles/styles';
 import { registerRootComponent } from 'expo';
@@ -18,6 +19,7 @@ const BLTManager = new BleManager();
 
 const TARGET_SERVICE_UUID = '4fafc201-1fb5-459e-8fcc-c5c9c331914b';
 const TARGET_BUTTON_UUID = 'f27b53ad-c63d-49a0-8c0f-9f297e6cc520';
+const TARGET_AMPLITUDE_UUID = '6d68efe5-04b6-4a85-abc4-c2670b7bf7fd'; // Add the characteristic UUID for amplitude control
 
 if (__DEV__) {
   console.log('Running in development mode');
@@ -25,7 +27,16 @@ if (__DEV__) {
   console.log('Running in production mode');
 }
 
-function ControlScreen({ isConnected, sendPauseCommand, sendResumeCommand, ButtonPressed }) {
+function ControlScreen({ isConnected, isReady, sendPauseCommand, sendResumeCommand, ButtonPressed, setAmplitude }) {
+  const [amplitude, setAmplitudeValue] = useState(50); // Initialize with a default amplitude value
+
+  const handleSliderChange = async (value: number) => {
+    setAmplitudeValue(value);
+    if (isConnected && isReady) {
+      await setAmplitude(value);
+    }
+  };
+
   return (
     <View style={styles.container}>
       <View style={styles.rowView}>
@@ -33,13 +44,25 @@ function ControlScreen({ isConnected, sendPauseCommand, sendResumeCommand, Butto
       </View>
 
       <View style={styles.rowView}>
+        <Text>Amplitude: {amplitude}</Text>
+        <Slider
+          style={{ width: 200, height: 40 }}
+          minimumValue={0}
+          maximumValue={100}
+          step={1}
+          value={amplitude}
+          onValueChange={handleSliderChange}
+        />
+      </View>
+
+      <View style={styles.rowView}>
         {!ButtonPressed ? (
           <TouchableOpacity style={{ width: 120 }}>
-            <Button title="Pause" onPress={sendPauseCommand} disabled={!isConnected} />
+            <Button title="Pause" onPress={sendPauseCommand} disabled={!isConnected || !isReady} />
           </TouchableOpacity>
         ) : (
           <TouchableOpacity style={{ width: 120 }}>
-            <Button title="Resume" onPress={sendResumeCommand} disabled={!isConnected} />
+            <Button title="Resume" onPress={sendResumeCommand} disabled={!isConnected || !isReady} />
           </TouchableOpacity>
         )}
       </View>
@@ -75,6 +98,7 @@ export default function App() {
   const [isConnected, setIsConnected] = useState(false);
   const [connectedDevice, setConnectedDevice] = useState<Device | null>(null);
   const [ButtonPressed, setButtonPressed] = useState(false);
+  const [isReady, setIsReady] = useState(false);
 
   async function scanDevices() {
     const { status } = await Location.requestForegroundPermissionsAsync();
@@ -120,6 +144,10 @@ export default function App() {
 
       // Discover all services and characteristics
       await device.discoverAllServicesAndCharacteristics();
+      console.log('Services and characteristics discovered');
+      
+      // After discovering services and characteristics, mark the device as ready
+      setIsReady(true);
 
       // Set up characteristic monitoring
       device.monitorCharacteristicForService(
@@ -150,6 +178,7 @@ export default function App() {
 
       setIsConnected(false);
       setConnectedDevice(null);
+      setIsReady(false); // Mark the device as not ready
 
       // Optionally attempt to reconnect immediately
       reconnectDevice().then(isConnected => {
@@ -162,10 +191,27 @@ export default function App() {
     });
   }
 
+  async function setAmplitude(amplitude: number) {
+    if (connectedDevice && isReady) {
+      try {
+        console.log('Sending amplitude command with value:', amplitude);
+        await connectedDevice.writeCharacteristicWithResponseForService(
+          TARGET_SERVICE_UUID,
+          TARGET_AMPLITUDE_UUID,
+          base64.encode(amplitude.toString())
+        );
+        console.log('Amplitude command sent successfully');
+      } catch (error) {
+        console.error('Failed to send amplitude command:', error);
+      }
+    } else {
+      console.warn('Cannot set amplitude: Device not connected or not ready');
+    }
+  }
+
   async function sendPauseCommand() {
-    if (connectedDevice) {
+    if (connectedDevice && isReady) {
       console.log('Sending pause command');
-      console.log('Connected Device ID pre pause:', connectedDevice.id);
 
       try {
         await connectedDevice.writeCharacteristicWithResponseForService(
@@ -174,7 +220,6 @@ export default function App() {
           base64.encode('1') // Send '1' to indicate pause
         );
         setButtonPressed(true);
-        console.log('Connected Device ID post pause:', connectedDevice.id);
       } catch (error) {
         console.error('Failed to send pause command:', error);
       }
@@ -182,7 +227,7 @@ export default function App() {
   }
 
   async function sendResumeCommand() {
-    if (connectedDevice) {
+    if (connectedDevice && isReady) {
       if (!connectedDevice.isConnected()) {
         console.warn('Device is not connected. Attempting to reconnect...');
         const isConnected = await reconnectDevice();
@@ -205,7 +250,7 @@ export default function App() {
         console.error('Failed to send resume command:', error);
       }
     } else {
-      console.warn('No connected device found');
+      console.warn('No connected device found or device is not ready');
     }
   }
 
@@ -216,6 +261,7 @@ export default function App() {
         await connectedDevice.connect();
         console.log('Reconnection successful');
         await connectedDevice.discoverAllServicesAndCharacteristics();
+        setIsReady(true); // Mark the device as ready after reconnection
       } catch (error) {
         console.error('Failed to reconnect:', error);
         return false; // Indicate that reconnection failed
@@ -233,6 +279,7 @@ export default function App() {
         console.log('Device disconnected successfully');
         setIsConnected(false);
         setConnectedDevice(null);
+        setIsReady(false); // Mark the device as not ready
       } catch (error) {
         if (error.errorCode === 201) {
           console.warn('Device was already disconnected or disconnected by the system.');
@@ -250,9 +297,11 @@ export default function App() {
           {() => (
             <ControlScreen
               isConnected={isConnected}
+              isReady={isReady}
               sendPauseCommand={sendPauseCommand}
               sendResumeCommand={sendResumeCommand}
               ButtonPressed={ButtonPressed}
+              setAmplitude={setAmplitude}
             />
           )}
         </Tab.Screen>
@@ -272,3 +321,5 @@ export default function App() {
 
 // Register the root component
 registerRootComponent(App);
+
+export default App;
