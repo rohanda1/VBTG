@@ -117,6 +117,7 @@ void loop() {
   if (isButtonPressed) {
     Serial.println("Pause command received. Pausing the loop...");
     while (isButtonPressed) {
+      BLE.poll();
       boxCharacteristic.readValue(boxValue, 1);
       Serial.print("Reading characteristic value: ");
       Serial.println(boxValue[0]);
