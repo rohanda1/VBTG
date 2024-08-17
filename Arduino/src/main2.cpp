@@ -9,18 +9,23 @@
 #include "Haptic_Driver.h"
 #include "Arduino.h"
 #include <ArduinoBLE.h>
-//#include <Base64.h>
+#include <SparkFunBQ27441.h>
 #define IIM42351_ADDRESS 0x68 
 Haptic_Driver hapDrive;
 uint8_t boxValue[2]; // Initialize the boxValue array with a default value
 uint8_t amplitudeValue[20];  // Buffer to hold the received value
+uint8_t amplitude = 0; // Global variable to store the amplitude value
+const unsigned int BATTERY_CAPACITY = 850; // e.g. 800mAh battery
+
 
 // BLE SECTION
 BLEService customService("4fafc201-1fb5-459e-8fcc-c5c9c331914b"); //Service UUID
 
-BLECharacteristic messageCharacteristic("6d68efe5-04b6-4a85-abc4-c2670b7bf7fd", //Message UUID
+BLECharacteristic amplitudeCharacteristic("6d68efe5-04b6-4a85-abc4-c2670b7bf7fd", //amplitude UUID
                                        BLERead | BLEWrite | BLENotify, 20);
 BLECharacteristic boxCharacteristic("f27b53ad-c63d-49a0-8c0f-9f297e6cc520", //Button UUID
+                                    BLERead | BLEWrite | BLENotify, 20);
+BLECharacteristic batteryCharacteristic("a8d41af6-cada-44fb-ba9a-d43c7d7a9dbe", //Battery UUID
                                     BLERead | BLEWrite | BLENotify, 20);
 int event = 0;
 int bus = 0;
@@ -47,10 +52,24 @@ float readZAcceleration() {
   return zAcceleration;
 }
 
+// Function to map the amplitude from 0-100 to 0-127
+uint8_t mapAmplitude(int amplitude) {
+    return (amplitude * 127) / 100;
+}
+
 void setup() {
   Wire.begin();
   Serial.begin(115200);
   while (!Serial); // Wait for the serial monitor to open
+  if (!lipo.begin()) // begin() will return true if communication is successful
+  {
+  // If communication fails, print an error message and loop forever.
+    Serial.println("Error: Unable to communicate with BQ27441.");
+    Serial.println("  Check wiring and try again.");
+    Serial.println("  (Battery must be plugged into Battery Babysitter!)");
+    while (1);
+  }
+  Serial.println("Connected to BQ27441!");
   Serial.println("Starting setup...");
   delay(2);
   for (int i = 3; i < 7; i++) {
@@ -84,9 +103,9 @@ void setup() {
 //  Serial.println("Local name set to Nano33BLEExample.");
   BLE.setAdvertisedService(customService);
   // Add characteristics to the service
-  customService.addCharacteristic(messageCharacteristic);
+  customService.addCharacteristic(amplitudeCharacteristic);
   customService.addCharacteristic(boxCharacteristic);
-
+  customService.addCharacteristic(batteryCharacteristic); // Add battery characteristic
   BLE.addService(customService);
 
   // Set initial characteristic values
@@ -103,7 +122,16 @@ void loop() {
   // Keep checking BLE central connection
   BLE.poll();
   Serial.println();
-  int length = messageCharacteristic.readValue(amplitudeValue, sizeof(amplitudeValue));  // Read the BLE characteristic value
+  unsigned int soc = lipo.soc();  // Read state-of-charge (%)
+  byte batteryBytes[sizeof(soc)];
+  memcpy(batteryBytes, &soc, sizeof(soc));
+
+  // Write the byte array to the battery characteristic
+  batteryCharacteristic.writeValue(batteryBytes, sizeof(batteryBytes));
+  
+  Serial.print("Battery Level: ");
+  Serial.println(soc);
+  int length = amplitudeCharacteristic.readValue(amplitudeValue, sizeof(amplitudeValue));  // Read the BLE characteristic value
 
   if (length > 0) {
     amplitudeValue[length] = '\0';  // Null-terminate the received data
@@ -114,7 +142,7 @@ void loop() {
     Serial.print("Received amplitude string: ");
     Serial.println(amplitudeString);  // Print the received string
 
-    uint8_t amplitude = (uint8_t)atoi(amplitudeString);  // Convert the string to an integer
+    amplitude = (uint8_t)atoi(amplitudeString);  // Convert the string to an integer
     Serial.print("Converted amplitude value: ");
     Serial.println(amplitude);  // Print the converted integer value
   }
@@ -163,7 +191,8 @@ void loop() {
       while (millis() - previousMillis < interval) {
         event = hapDrive.getIrqEvent();  // If uploading often the Haptic Driver IC will throw a fault
         hapDrive.clearIrq(event);        // Clearing error 
-        hapDrive.setVibrate(127);
+        int LRA_Amplitude= mapAmplitude(amplitude);
+        hapDrive.setVibrate(LRA_Amplitude);
         float zAcceleration = readZAcceleration();
         /*
         Serial.print("Z Acceleration: "); 

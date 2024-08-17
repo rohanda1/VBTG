@@ -1,5 +1,5 @@
 import 'expo-dev-client';  // Ensures the custom development client is used
-import React, { useState, useCallback } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   TouchableOpacity,
   Button,
@@ -21,6 +21,7 @@ const BLTManager = new BleManager();
 const TARGET_SERVICE_UUID = '4fafc201-1fb5-459e-8fcc-c5c9c331914b';
 const TARGET_BUTTON_UUID = 'f27b53ad-c63d-49a0-8c0f-9f297e6cc520';
 const TARGET_AMPLITUDE_UUID = '6d68efe5-04b6-4a85-abc4-c2670b7bf7fd'; // Add the characteristic UUID for amplitude control
+const TARGET_BATTERY_UUID = 'a8d41af6-cada-44fb-ba9a-d43c7d7a9dbe'; // Add the characteristic UUID for amplitude control
 
 if (__DEV__) {
   console.log('Running in development mode');
@@ -28,7 +29,7 @@ if (__DEV__) {
   console.log('Running in production mode');
 }
 
-function ControlScreen({ isConnected, isReady, sendPauseCommand, sendResumeCommand, ButtonPressed, setAmplitude }) {
+function ControlScreen({ isConnected, isReady, sendPauseCommand, sendResumeCommand, ButtonPressed, setAmplitude, batteryLevel }) {
   const [amplitude, setAmplitudeValue] = useState(50); // Initialize with a default amplitude value
 
   // Throttle the setAmplitude function to prevent rapid BLE commands
@@ -76,6 +77,10 @@ function ControlScreen({ isConnected, isReady, sendPauseCommand, sendResumeComma
       <View style={{ justifyContent: 'center', alignItems: 'center', marginVertical: 20 }}>
         <Text style={styles.baseText}>{ButtonPressed ? 'Paused' : 'Running'}</Text>
       </View>
+
+      <View style={styles.rowView}>
+        <Text>Battery Level: {batteryLevel}%</Text>
+      </View>
     </View>
   );
 }
@@ -105,7 +110,35 @@ export default function App() {
   const [connectedDevice, setConnectedDevice] = useState<Device | null>(null);
   const [ButtonPressed, setButtonPressed] = useState(false);
   const [isReady, setIsReady] = useState(false);
+  const [batteryLevel, setBatteryLevel] = useState<number | null>(null); // State for battery level
 
+  useEffect(() => {
+    if (connectedDevice && isReady) {
+      monitorBatteryLevel();
+    }
+  }, [connectedDevice, isReady]);
+
+  async function monitorBatteryLevel() {
+    if (connectedDevice) {
+      connectedDevice.monitorCharacteristicForService(
+        TARGET_SERVICE_UUID,
+        TARGET_BATTERY_UUID,
+        (error, characteristic) => {
+          if (error) {
+            console.error('Battery level monitoring error:', error);
+            return;
+          }
+          if (characteristic?.value) {
+            const batteryArray = base64.decode(characteristic.value);
+            const battery = new Uint8Array(batteryArray)[0]; // Assuming the value is a single byte
+            setBatteryLevel(battery);
+            console.log('Battery level:', battery);
+          }
+        },
+        'batteryTransaction'
+      );
+    }
+  }
   async function scanDevices() {
     const { status } = await Location.requestForegroundPermissionsAsync();
     console.log('Permissions status:', status);
@@ -310,6 +343,7 @@ export default function App() {
               sendResumeCommand={sendResumeCommand}
               ButtonPressed={ButtonPressed}
               setAmplitude={setAmplitude}
+              batteryLevel={batteryLevel}
             />
           )}
         </Tab.Screen>
