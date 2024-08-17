@@ -9,7 +9,7 @@
 #include "Haptic_Driver.h"
 #include "Arduino.h"
 #include <ArduinoBLE.h>
-#include <Base64.h>
+//#include <Base64.h>
 #define IIM42351_ADDRESS 0x68 
 Haptic_Driver hapDrive;
 
@@ -110,24 +110,26 @@ void loop() {
   Serial.println(amplitudeValue[0]);
 */
   // Decode the base64 encoded string
-  uint8_t amplitudeValueEncoded[20];
-  messageCharacteristic.readValue((uint8_t*)amplitudeValueEncoded, sizeof(amplitudeValueEncoded));
-  uint8_t decodedValue[10]; // 2 digits + null terminator
-  int decodedLength = Base64.decode((char*)decodedValue, (char*)amplitudeValueEncoded, strlen((char*)amplitudeValueEncoded));
 
-  if (decodedLength > 0) {
-    int amplitude = atoi((char*)decodedValue); // Convert decoded string to an integer
+  Serial.println();
+  uint8_t amplitudeValue[20];  // Buffer to hold the received value
+  int length = messageCharacteristic.readValue(amplitudeValue, sizeof(amplitudeValue));  // Read the BLE characteristic value
 
-    if (amplitude >= 0 && amplitude <= 100) {
-      Serial.print("Amplitude set to: ");
-      Serial.println(amplitude);
-      // Set your motor amplitude here
-    } else {
-      Serial.println("Received amplitude is out of range");
-    }
-  } else {
-    Serial.println("Failed to decode amplitude value");
+  if (length > 0) {
+    amplitudeValue[length] = '\0';  // Null-terminate the received data
+    char amplitudeString[length + 1];  // Create a char array to hold the string
+    memcpy(amplitudeString, amplitudeValue, length);  // Copy the received bytes to the string
+    amplitudeString[length] = '\0';  // Null-terminate the string
+
+    Serial.print("Received amplitude string: ");
+    Serial.println(amplitudeString);  // Print the received string
+
+    uint8_t amplitude = (uint8_t)atoi(amplitudeString);  // Convert the string to an integer
+    Serial.print("Converted amplitude value: ");
+    Serial.println(amplitude);  // Print the converted integer value
   }
+  
+
   // Read the current value of the box characteristic
   uint8_t boxValue[2]; // Initialize the boxValue array with a default value
   boxCharacteristic.readValue(boxValue, 1); // Read the value of the box characteristic into the boxValue array
@@ -137,6 +139,7 @@ void loop() {
   bool isButtonPressed = (boxValue[0] == '1');
   Serial.print("isButtonPressed: ");
   Serial.println(isButtonPressed);
+
   if (isButtonPressed) {
     Serial.println("Pause command received. Pausing the loop...");
     while (isButtonPressed) {
