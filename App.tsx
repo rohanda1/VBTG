@@ -1,5 +1,5 @@
 import 'expo-dev-client';  // Ensures the custom development client is used
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import {
   TouchableOpacity,
   Button,
@@ -14,6 +14,7 @@ import { registerRootComponent } from 'expo';
 import base64 from 'react-native-base64';
 import { NavigationContainer } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
+import { throttle } from 'lodash';  // Import lodash throttle
 
 const BLTManager = new BleManager();
 
@@ -30,20 +31,25 @@ if (__DEV__) {
 function ControlScreen({ isConnected, isReady, sendPauseCommand, sendResumeCommand, ButtonPressed, setAmplitude }) {
   const [amplitude, setAmplitudeValue] = useState(50); // Initialize with a default amplitude value
 
-  const handleSliderChange = async (value: number) => {
+  // Throttle the setAmplitude function to prevent rapid BLE commands
+  const throttledSetAmplitude = useCallback(
+    throttle((value) => {
+      if (isConnected && isReady) {
+        setAmplitude(value);
+      }
+    }, 500), // Throttle to 500ms intervals
+    [isConnected, isReady]
+  );
+
+  const handleSliderChange = (value: number) => {
     setAmplitudeValue(value);
-    if (isConnected && isReady) {
-      await setAmplitude(value);
-    }
+    throttledSetAmplitude(value);
   };
 
   return (
-    <View style={styles.container}>
-      <View style={styles.rowView}>
-        <Text style={styles.titleText}>VBTG CONTROL</Text>
-      </View>
+    <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
 
-      <View style={styles.rowView}>
+      <View style={{ justifyContent: 'center', alignItems: 'center', marginVertical: 20 }}>
         <Text>Amplitude: {amplitude}</Text>
         <Slider
           style={{ width: 200, height: 40 }}
@@ -55,7 +61,7 @@ function ControlScreen({ isConnected, isReady, sendPauseCommand, sendResumeComma
         />
       </View>
 
-      <View style={styles.rowView}>
+      <View style={{ justifyContent: 'center', alignItems: 'center', marginVertical: 20 }}>
         {!ButtonPressed ? (
           <TouchableOpacity style={{ width: 120 }}>
             <Button title="Pause" onPress={sendPauseCommand} disabled={!isConnected || !isReady} />
@@ -67,7 +73,7 @@ function ControlScreen({ isConnected, isReady, sendPauseCommand, sendResumeComma
         )}
       </View>
 
-      <View style={styles.rowView}>
+      <View style={{ justifyContent: 'center', alignItems: 'center', marginVertical: 20 }}>
         <Text style={styles.baseText}>{ButtonPressed ? 'Paused' : 'Running'}</Text>
       </View>
     </View>
@@ -295,7 +301,7 @@ export default function App() {
   return (
     <NavigationContainer>
       <Tab.Navigator>
-        <Tab.Screen name="Control">
+        <Tab.Screen name="VBTG Control">
           {() => (
             <ControlScreen
               isConnected={isConnected}
@@ -307,7 +313,7 @@ export default function App() {
             />
           )}
         </Tab.Screen>
-        <Tab.Screen name="Connection">
+        <Tab.Screen name="BLE Connection">
           {() => (
             <ConnectionScreen
               scanDevices={scanDevices}

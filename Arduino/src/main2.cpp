@@ -12,6 +12,8 @@
 //#include <Base64.h>
 #define IIM42351_ADDRESS 0x68 
 Haptic_Driver hapDrive;
+uint8_t boxValue[2]; // Initialize the boxValue array with a default value
+uint8_t amplitudeValue[20];  // Buffer to hold the received value
 
 // BLE SECTION
 BLEService customService("4fafc201-1fb5-459e-8fcc-c5c9c331914b"); //Service UUID
@@ -85,11 +87,9 @@ void setup() {
   customService.addCharacteristic(messageCharacteristic);
   customService.addCharacteristic(boxCharacteristic);
 
-  // Add service
   BLE.addService(customService);
 
   // Set initial characteristic values
-//  messageCharacteristic.writeValue("Message one");
   boxCharacteristic.writeValue("0");
 
   // Start advertising
@@ -102,17 +102,7 @@ void loop() {
   Serial.println("Looping...");
   // Keep checking BLE central connection
   BLE.poll();
-/*
-  uint8_t amplitudeValue[4];
-  messageCharacteristic.readValue(amplitudeValue, sizeof(amplitudeValue));
-  int amplitude = atoi((char*)amplitudeValue);
-  Serial.print("Amplitude set to: ");
-  Serial.println(amplitudeValue[0]);
-*/
-  // Decode the base64 encoded string
-
   Serial.println();
-  uint8_t amplitudeValue[20];  // Buffer to hold the received value
   int length = messageCharacteristic.readValue(amplitudeValue, sizeof(amplitudeValue));  // Read the BLE characteristic value
 
   if (length > 0) {
@@ -131,7 +121,6 @@ void loop() {
   
 
   // Read the current value of the box characteristic
-  uint8_t boxValue[2]; // Initialize the boxValue array with a default value
   boxCharacteristic.readValue(boxValue, 1); // Read the value of the box characteristic into the boxValue array
   Serial.print("boxValue[0]: ");
   Serial.println(boxValue[0]);
@@ -198,10 +187,7 @@ void loop() {
   if (cycle_count % 3 == 0) {
     delay(1500);
     previousMillis = millis(); // Reset previousMillis
-  }
-  
-  //insert callout to pause loop if button is pressed in app.tsx code
-  
+  }  
 }
 
 

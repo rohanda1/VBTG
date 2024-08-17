@@ -7,6 +7,7 @@ import {
   Text,
 } from 'react-native';
 import { BleManager, Device } from 'react-native-ble-plx';
+import Slider from '@react-native-community/slider';
 import * as Location from 'expo-location';
 import { styles } from './Styles/styles';
 import { registerRootComponent } from 'expo';
@@ -18,6 +19,7 @@ const BLTManager = new BleManager();
 
 const TARGET_SERVICE_UUID = '4fafc201-1fb5-459e-8fcc-c5c9c331914b';
 const TARGET_BUTTON_UUID = 'f27b53ad-c63d-49a0-8c0f-9f297e6cc520';
+const TARGET_AMPLITUDE_UUID = '6d68efe5-04b6-4a85-abc4-c2670b7bf7fd'; // Add the characteristic UUID for amplitude control
 
 if (__DEV__) {
   console.log('Running in development mode');
@@ -25,11 +27,32 @@ if (__DEV__) {
   console.log('Running in production mode');
 }
 
-function ControlScreen({ isConnected, isReady, sendPauseCommand, sendResumeCommand, ButtonPressed }) {
+function ControlScreen({ isConnected, isReady, sendPauseCommand, sendResumeCommand, ButtonPressed, setAmplitude }) {
+  const [amplitude, setAmplitudeValue] = useState(50); // Initialize with a default amplitude value
+
+  const handleSliderChange = async (value: number) => {
+    setAmplitudeValue(value);
+    if (isConnected && isReady) {
+      await setAmplitude(value);
+    }
+  };
+
   return (
     <View style={styles.container}>
       <View style={styles.rowView}>
         <Text style={styles.titleText}>VBTG CONTROL</Text>
+      </View>
+
+      <View style={styles.rowView}>
+        <Text>Amplitude: {amplitude}</Text>
+        <Slider
+          style={{ width: 200, height: 40 }}
+          minimumValue={0}
+          maximumValue={100}
+          step={1}
+          value={amplitude}
+          onValueChange={handleSliderChange}
+        />
       </View>
 
       <View style={styles.rowView}>
@@ -168,10 +191,29 @@ export default function App() {
     });
   }
 
+  async function setAmplitude(amplitude: number) {
+    if (connectedDevice && isReady) {
+      try {
+        console.log('Sending amplitude command with value:', amplitude);
+        const amplitudeString = amplitude.toString();
+        console.log('Encoded Amplitude:', base64.encode(amplitudeString);
+        await connectedDevice.writeCharacteristicWithResponseForService(
+          TARGET_SERVICE_UUID,
+          TARGET_AMPLITUDE_UUID,
+          base64.encode(amplitudeString)
+        );
+        console.log('Amplitude command sent successfully');
+      } catch (error) {
+        console.error('Failed to send amplitude command:', error);
+      }
+    } else {
+      console.warn('Cannot set amplitude: Device not connected or not ready');
+    }
+  }
+
   async function sendPauseCommand() {
     if (connectedDevice && isReady) {
       console.log('Sending pause command');
-      console.log('Connected Device ID pre pause:', connectedDevice.id);
 
       try {
         await connectedDevice.writeCharacteristicWithResponseForService(
@@ -180,7 +222,6 @@ export default function App() {
           base64.encode('1') // Send '1' to indicate pause
         );
         setButtonPressed(true);
-        console.log('Connected Device ID post pause:', connectedDevice.id);
       } catch (error) {
         console.error('Failed to send pause command:', error);
       }
@@ -240,7 +281,7 @@ export default function App() {
         console.log('Device disconnected successfully');
         setIsConnected(false);
         setConnectedDevice(null);
-        setIsReady(false); // Mark the device as not ready after disconnection
+        setIsReady(false); // Mark the device as not ready
       } catch (error) {
         if (error.errorCode === 201) {
           console.warn('Device was already disconnected or disconnected by the system.');
@@ -262,6 +303,7 @@ export default function App() {
               sendPauseCommand={sendPauseCommand}
               sendResumeCommand={sendResumeCommand}
               ButtonPressed={ButtonPressed}
+              setAmplitude={setAmplitude}
             />
           )}
         </Tab.Screen>
@@ -281,3 +323,5 @@ export default function App() {
 
 // Register the root component
 registerRootComponent(App);
+
+export default App;
