@@ -20,8 +20,9 @@ const BLTManager = new BleManager();
 
 const TARGET_SERVICE_UUID = '4fafc201-1fb5-459e-8fcc-c5c9c331914b';
 const TARGET_BUTTON_UUID = 'f27b53ad-c63d-49a0-8c0f-9f297e6cc520';
-const TARGET_AMPLITUDE_UUID = '6d68efe5-04b6-4a85-abc4-c2670b7bf7fd'; // Add the characteristic UUID for amplitude control
-const TARGET_BATTERY_UUID = 'a8d41af6-cada-44fb-ba9a-d43c7d7a9dbe'; // Add the characteristic UUID for amplitude control
+const TARGET_AMPLITUDE_UUID = '6d68efe5-04b6-4a85-abc4-c2670b7bf7fd';
+const TARGET_BATTERY_UUID = 'a8d41af6-cada-44fb-ba9a-d43c7d7a9dbe';
+const TARGET_RESTART_UUID = '197ca73c-4f56-4021-bb56-0885cb13f23a'; 
 
 if (__DEV__) {
   console.log('Running in development mode');
@@ -49,7 +50,6 @@ function ControlScreen({ isConnected, isReady, sendPauseCommand, sendResumeComma
 
   return (
     <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
-
       <View style={{ justifyContent: 'center', alignItems: 'center', marginVertical: 20 }}>
         <Text>Amplitude: {amplitude}</Text>
         <Slider
@@ -85,18 +85,22 @@ function ControlScreen({ isConnected, isReady, sendPauseCommand, sendResumeComma
   );
 }
 
-function ConnectionScreen({ scanDevices, disconnectDevice, isConnected }) {
+function ConnectionScreen({ scanDevices, disconnectDevice, isConnected, sendRestartCommand }) {
   return (
-    <View style={styles.container}>
-      <View style={styles.rowView}>
+    <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
+      <View style={{ justifyContent: 'center', alignItems: 'center', marginVertical: 20 }}>
         <Button title="Connect" onPress={scanDevices} disabled={isConnected} />
       </View>
 
-      <View style={styles.rowView}>
+      <View style={{ justifyContent: 'center', alignItems: 'center', marginVertical: 20 }}>
         <Button title="Disconnect" onPress={disconnectDevice} disabled={!isConnected} />
       </View>
 
-      <View style={styles.rowView}>
+      <View style={{ justifyContent: 'center', alignItems: 'center', marginVertical: 20 }}>
+        <Button title="Restart Session" onPress={sendRestartCommand} disabled={!isConnected} />
+      </View>
+
+      <View style={{ justifyContent: 'center', alignItems: 'center', marginVertical: 20 }}>
         <Text style={styles.baseText}>{isConnected ? 'Connected' : 'Disconnected'}</Text>
       </View>
     </View>
@@ -295,20 +299,23 @@ export default function App() {
     }
   }
 
-  async function reconnectDevice() {
-    if (connectedDevice && !connectedDevice.isConnected()) {
+  async function sendRestartCommand() {
+    if (connectedDevice && isReady) {
+      console.log('Sending restart session command');
+
       try {
-        console.log('Reconnecting to device...');
-        await connectedDevice.connect();
-        console.log('Reconnection successful');
-        await connectedDevice.discoverAllServicesAndCharacteristics();
-        setIsReady(true); // Mark the device as ready after reconnection
+        await connectedDevice.writeCharacteristicWithResponseForService(
+          TARGET_SERVICE_UUID,
+          TARGET_RESTART_UUID,
+          base64.encode('1') // Send '1' to indicate restart session
+        );
+        console.log('Restart session command sent successfully');
       } catch (error) {
-        console.error('Failed to reconnect:', error);
-        return false; // Indicate that reconnection failed
+        console.error('Failed to send restart session command:', error);
       }
+    } else {
+      console.warn('Cannot restart session: Device not connected or not ready');
     }
-    return true; // Indicate that the device is connected (or reconnection was successful)
   }
 
   async function disconnectDevice() {
@@ -329,6 +336,22 @@ export default function App() {
         }
       }
     }
+  }
+
+  async function reconnectDevice() {
+    if (connectedDevice && !connectedDevice.isConnected()) {
+      try {
+        console.log('Reconnecting to device...');
+        await connectedDevice.connect();
+        console.log('Reconnection successful');
+        await connectedDevice.discoverAllServicesAndCharacteristics();
+        setIsReady(true); // Mark the device as ready after reconnection
+      } catch (error) {
+        console.error('Failed to reconnect:', error);
+        return false; // Indicate that reconnection failed
+      }
+    }
+    return true; // Indicate that the device is connected (or reconnection was successful)
   }
 
   return (
@@ -353,6 +376,7 @@ export default function App() {
               scanDevices={scanDevices}
               disconnectDevice={disconnectDevice}
               isConnected={isConnected}
+              sendRestartCommand={sendRestartCommand} // Pass the restart command function to the connection screen
             />
           )}
         </Tab.Screen>

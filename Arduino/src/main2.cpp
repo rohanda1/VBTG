@@ -27,6 +27,10 @@ BLECharacteristic boxCharacteristic("f27b53ad-c63d-49a0-8c0f-9f297e6cc520", //Bu
                                     BLERead | BLEWrite | BLENotify, 20);
 BLECharacteristic batteryCharacteristic("a8d41af6-cada-44fb-ba9a-d43c7d7a9dbe", //Battery UUID
                                     BLERead | BLEWrite | BLENotify, 20);
+BLECharacteristic restartCharacteristic("197ca73c-4f56-4021-bb56-0885cb13f23a", //Restart UUID
+                                    BLERead | BLEWrite | BLENotify, 20);    
+
+bool shouldRestart = false;
 int event = 0;
 int bus = 0;
 int cycle_count = 1;
@@ -56,6 +60,33 @@ float readZAcceleration() {
 uint8_t mapAmplitude(int amplitude) {
     return (amplitude * 127) / 100;
 }
+
+void restartSession(){
+   if (!BLE.begin()) {
+  Serial.println("starting BLE failed!");
+  while (1);
+  }
+  // Set device name
+//  BLE.setLocalName("Nano33BLEExample");
+//  Serial.println("Local name set to Nano33BLEExample.");
+  BLE.setAdvertisedService(customService);
+  // Add characteristics to the service
+  customService.addCharacteristic(amplitudeCharacteristic);
+  customService.addCharacteristic(boxCharacteristic);
+  customService.addCharacteristic(batteryCharacteristic); 
+  customService.addCharacteristic(restartCharacteristic); 
+
+  BLE.addService(customService);
+
+  // Set initial characteristic values
+  boxCharacteristic.writeValue("0");
+
+  // Start advertising
+  BLE.advertise();
+
+  Serial.println("Waiting for a client connection to notify...");
+}
+ 
 
 void setup() {
   Wire.begin();
@@ -105,7 +136,9 @@ void setup() {
   // Add characteristics to the service
   customService.addCharacteristic(amplitudeCharacteristic);
   customService.addCharacteristic(boxCharacteristic);
-  customService.addCharacteristic(batteryCharacteristic); // Add battery characteristic
+  customService.addCharacteristic(batteryCharacteristic); 
+  customService.addCharacteristic(restartCharacteristic); 
+
   BLE.addService(customService);
 
   // Set initial characteristic values
@@ -121,6 +154,15 @@ void loop() {
   Serial.println("Looping...");
   // Keep checking BLE central connection
   BLE.poll();
+      if (restartCharacteristic.written()) {
+      uint8_t command = *restartCharacteristic.value();  // Dereferencing the pointer to get the actual value
+      if (command == '1') {
+        Serial.println("Restart command received. Restarting session...");
+        command ='0';
+        restartSession();
+    }
+  }
+
   Serial.println();
   unsigned int soc = lipo.soc();  // Read state-of-charge (%)
   byte batteryBytes[sizeof(soc)];
@@ -162,6 +204,8 @@ void loop() {
     while (isButtonPressed) {
       BLE.poll();
       boxCharacteristic.readValue(boxValue, 1);
+      hapDrive.clearIrq(event);        // Clearing error 
+      hapDrive.setVibrate(0);
       Serial.print("Reading characteristic value: ");
       Serial.println(boxValue[0]);
       if (boxValue[0] == '0') {

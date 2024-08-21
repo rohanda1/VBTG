@@ -1,5 +1,5 @@
 import 'expo-dev-client';  // Ensures the custom development client is used
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   TouchableOpacity,
   Button,
@@ -14,12 +14,15 @@ import { registerRootComponent } from 'expo';
 import base64 from 'react-native-base64';
 import { NavigationContainer } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
+import { throttle } from 'lodash';  // Import lodash throttle
 
 const BLTManager = new BleManager();
 
 const TARGET_SERVICE_UUID = '4fafc201-1fb5-459e-8fcc-c5c9c331914b';
 const TARGET_BUTTON_UUID = 'f27b53ad-c63d-49a0-8c0f-9f297e6cc520';
 const TARGET_AMPLITUDE_UUID = '6d68efe5-04b6-4a85-abc4-c2670b7bf7fd'; // Add the characteristic UUID for amplitude control
+const TARGET_BATTERY_UUID = 'a8d41af6-cada-44fb-ba9a-d43c7d7a9dbe'; // Add the characteristic UUID for amplitude control
+const TARGET_RESTART_UUID = '197ca73c-4f56-4021-bb56-0885cb13f23a'; 
 
 if (__DEV__) {
   console.log('Running in development mode');
@@ -27,23 +30,28 @@ if (__DEV__) {
   console.log('Running in production mode');
 }
 
-function ControlScreen({ isConnected, isReady, sendPauseCommand, sendResumeCommand, ButtonPressed, setAmplitude }) {
+function ControlScreen({ isConnected, isReady, sendPauseCommand, sendResumeCommand, ButtonPressed, setAmplitude, batteryLevel }) {
   const [amplitude, setAmplitudeValue] = useState(50); // Initialize with a default amplitude value
 
-  const handleSliderChange = async (value: number) => {
+  // Throttle the setAmplitude function to prevent rapid BLE commands
+  const throttledSetAmplitude = useCallback(
+    throttle((value) => {
+      if (isConnected && isReady) {
+        setAmplitude(value);
+      }
+    }, 500), // Throttle to 500ms intervals
+    [isConnected, isReady]
+  );
+
+  const handleSliderChange = (value: number) => {
     setAmplitudeValue(value);
-    if (isConnected && isReady) {
-      await setAmplitude(value);
-    }
+    throttledSetAmplitude(value);
   };
 
   return (
-    <View style={styles.container}>
-      <View style={styles.rowView}>
-        <Text style={styles.titleText}>VBTG CONTROL</Text>
-      </View>
+    <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
 
-      <View style={styles.rowView}>
+      <View style={{ justifyContent: 'center', alignItems: 'center', marginVertical: 20 }}>
         <Text>Amplitude: {amplitude}</Text>
         <Slider
           style={{ width: 200, height: 40 }}
@@ -55,7 +63,7 @@ function ControlScreen({ isConnected, isReady, sendPauseCommand, sendResumeComma
         />
       </View>
 
-      <View style={styles.rowView}>
+      <View style={{ justifyContent: 'center', alignItems: 'center', marginVertical: 20 }}>
         {!ButtonPressed ? (
           <TouchableOpacity style={{ width: 120 }}>
             <Button title="Pause" onPress={sendPauseCommand} disabled={!isConnected || !isReady} />
@@ -67,14 +75,18 @@ function ControlScreen({ isConnected, isReady, sendPauseCommand, sendResumeComma
         )}
       </View>
 
-      <View style={styles.rowView}>
+      <View style={{ justifyContent: 'center', alignItems: 'center', marginVertical: 20 }}>
         <Text style={styles.baseText}>{ButtonPressed ? 'Paused' : 'Running'}</Text>
+      </View>
+
+      <View style={styles.rowView}>
+        <Text>Battery Level: {batteryLevel}%</Text>
       </View>
     </View>
   );
 }
 
-function ConnectionScreen({ scanDevices, disconnectDevice, isConnected }) {
+function ConnectionScreen({ scanDevices, disconnectDevice, isConnected, sendRestartCommand }) {
   return (
     <View style={styles.container}>
       <View style={styles.rowView}>
@@ -83,6 +95,10 @@ function ConnectionScreen({ scanDevices, disconnectDevice, isConnected }) {
 
       <View style={styles.rowView}>
         <Button title="Disconnect" onPress={disconnectDevice} disabled={!isConnected} />
+      </View>
+
+      <View style={styles.rowView}>
+        <Button title="Restart Session" onPress={sendRestartCommand} disabled={!isConnected} />
       </View>
 
       <View style={styles.rowView}>
@@ -99,7 +115,35 @@ export default function App() {
   const [connectedDevice, setConnectedDevice] = useState<Device | null>(null);
   const [ButtonPressed, setButtonPressed] = useState(false);
   const [isReady, setIsReady] = useState(false);
+  const [batteryLevel, setBatteryLevel] = useState<number | null>(null); // State for battery level
 
+  useEffect(() => {
+    if (connectedDevice && isReady) {
+      monitorBatteryLevel();
+    }
+  }, [connectedDevice, isReady]);
+
+  async function monitorBatteryLevel() {
+    if (connectedDevice) {
+      connectedDevice.monitorCharacteristicForService(
+        TARGET_SERVICE_UUID,
+        TARGET_BATTERY_UUID,
+        (error, characteristic) => {
+          if (error) {
+            console.error('Battery level monitoring error:', error);
+            return;
+          }
+          if (characteristic?.value) {
+            const batteryArray = base64.decode(characteristic.value);
+            const battery = new Uint8Array(batteryArray)[0]; // Assuming the value is a single byte
+            setBatteryLevel(battery);
+            console.log('Battery level:', battery);
+          }
+        },
+        'batteryTransaction'
+      );
+    }
+  }
   async function scanDevices() {
     const { status } = await Location.requestForegroundPermissionsAsync();
     console.log('Permissions status:', status);
@@ -196,7 +240,7 @@ export default function App() {
       try {
         console.log('Sending amplitude command with value:', amplitude);
         const amplitudeString = amplitude.toString();
-        console.log('Encoded Amplitude:', base64.encode(amplitudeString);
+        console.log('Encoded Amplitude:', base64.encode(amplitudeString));
         await connectedDevice.writeCharacteristicWithResponseForService(
           TARGET_SERVICE_UUID,
           TARGET_AMPLITUDE_UUID,
@@ -292,10 +336,29 @@ export default function App() {
     }
   }
 
+  async function sendRestartCommand() {
+    if (connectedDevice && isReady) {
+      console.log('Sending restart session command');
+
+      try {
+        await connectedDevice.writeCharacteristicWithResponseForService(
+          TARGET_SERVICE_UUID,
+          TARGET_RESTART_UUID,
+          base64.encode('1') // Send '1' to indicate restart session
+        );
+        console.log('Restart session command sent successfully');
+      } catch (error) {
+        console.error('Failed to send restart session command:', error);
+      }
+    } else {
+      console.warn('Cannot restart session: Device not connected or not ready');
+    }
+  }
+
   return (
     <NavigationContainer>
       <Tab.Navigator>
-        <Tab.Screen name="Control">
+        <Tab.Screen name="VBTG Control">
           {() => (
             <ControlScreen
               isConnected={isConnected}
@@ -304,10 +367,11 @@ export default function App() {
               sendResumeCommand={sendResumeCommand}
               ButtonPressed={ButtonPressed}
               setAmplitude={setAmplitude}
+              batteryLevel={batteryLevel}
             />
           )}
         </Tab.Screen>
-        <Tab.Screen name="Connection">
+        <Tab.Screen name="BLE Connection">
           {() => (
             <ConnectionScreen
               scanDevices={scanDevices}
