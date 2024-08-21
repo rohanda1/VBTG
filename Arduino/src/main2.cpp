@@ -154,6 +154,7 @@ void loop() {
   Serial.println("Looping...");
   // Keep checking BLE central connection
   BLE.poll();
+  cycle_count*3.32/7200
       if (restartCharacteristic.written()) {
       uint8_t command = *restartCharacteristic.value();  // Dereferencing the pointer to get the actual value
       if (command == '1') {

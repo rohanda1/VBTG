@@ -15,6 +15,8 @@ import base64 from 'react-native-base64';
 import { NavigationContainer } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { throttle } from 'lodash';  // Import lodash throttle
+import * as Progress from 'react-native-progress';  // Import the progress bar library
+
 
 const BLTManager = new BleManager();
 
@@ -23,6 +25,7 @@ const TARGET_BUTTON_UUID = 'f27b53ad-c63d-49a0-8c0f-9f297e6cc520';
 const TARGET_AMPLITUDE_UUID = '6d68efe5-04b6-4a85-abc4-c2670b7bf7fd';
 const TARGET_BATTERY_UUID = 'a8d41af6-cada-44fb-ba9a-d43c7d7a9dbe';
 const TARGET_RESTART_UUID = '197ca73c-4f56-4021-bb56-0885cb13f23a'; 
+const TARGET_SESSION_LENGTH_UUID = ''; 
 
 if (__DEV__) {
   console.log('Running in development mode');
@@ -32,8 +35,27 @@ if (__DEV__) {
 
 function ControlScreen({ isConnected, isReady, sendPauseCommand, sendResumeCommand, ButtonPressed, setAmplitude, batteryLevel }) {
   const [amplitude, setAmplitudeValue] = useState(50); // Initialize with a default amplitude value
-
+  const [progress, setProgress] = useState(0); // State for progress
+  const sessionDuration = 120 * 60 * 1000; // 2 hours in milliseconds
   // Throttle the setAmplitude function to prevent rapid BLE commands
+  useEffect(() => {
+    if (ButtonPressed === false && isConnected) {
+      const startTime = Date.now();
+
+      const interval = setInterval(() => {
+        const elapsedTime = Date.now() - startTime;
+        const progressPercentage = Math.min(elapsedTime / sessionDuration, 1);
+        setProgress(progressPercentage);
+
+        if (progressPercentage >= 1) {
+          clearInterval(interval);
+        }
+      }, 1000);
+
+      return () => clearInterval(interval);
+    }
+  }, [ButtonPressed, isConnected]);
+  
   const throttledSetAmplitude = useCallback(
     throttle((value) => {
       if (isConnected && isReady) {
@@ -78,8 +100,13 @@ function ControlScreen({ isConnected, isReady, sendPauseCommand, sendResumeComma
         <Text style={styles.baseText}>{ButtonPressed ? 'Paused' : 'Running'}</Text>
       </View>
 
-      <View style={styles.rowView}>
+      <View style={{ justifyContent: 'center', alignItems: 'center', marginVertical: 20 }}>
         <Text>Battery Level: {batteryLevel}%</Text>
+      </View>
+
+      <View style={{ justifyContent: 'center', alignItems: 'center', marginVertical: 20 }}>
+        <Text>Session Progress</Text>
+        <Progress.Bar progress={progress} width={200} />
       </View>
     </View>
   );
