@@ -108,6 +108,9 @@ void setup() {
     TwoWire &wirePort = Wire;
     hapDrive._i2cPort = &wirePort;
     hapDrive._writeRegister(CHIP_REV_REG, 0xBA, 0xBA, 1);
+    hapDrive._writeRegister(TOP_INT_CFG8, 0x00, 0x7F, 0); //prevents overshoot during actuator braking
+    hapDrive._writeRegister(TOP_CFG1, 0xFD, 0x01, 1); //default settings rapid stop enabled
+//  hapDrive._writeRegister(TOP_CFG1, 0xFD,0x00,1); //rapid stop disabled
   //  uint8_t temp = hapDrive._readRegister(CHIP_REV_REG); 
   //  Serial.println(temp);
     if (!hapDrive.defaultMotor()) {
@@ -154,7 +157,7 @@ void loop() {
   Serial.println("Looping...");
   // Keep checking BLE central connection
   BLE.poll();
-  cycle_count*3.32/7200
+//  cycle_count*3.32/7200;
       if (restartCharacteristic.written()) {
       uint8_t command = *restartCharacteristic.value();  // Dereferencing the pointer to get the actual value
       if (command == '1') {
