@@ -36,24 +36,35 @@ function ControlScreen({ isConnected, isReady, sendPauseCommand, sendResumeComma
   const [amplitude, setAmplitudeValue] = useState(50); // Initialize with a default amplitude value
   const [progress, setProgress] = useState(0); // State for progress
   const sessionDuration = 120 * 60 * 1000; // 2 hours in milliseconds
+  const [startTime, setStartTime] = useState<number | null>(null); // State for session start time
 
   useEffect(() => {
+    let interval: NodeJS.Timeout | null = null;
+
     if (!ButtonPressed && isConnected) {
-      const startTime = Date.now();
+      if (!startTime) {
+        setStartTime(Date.now()); // Start the session timer when the device is resumed
+      }
 
-      const interval = setInterval(() => {
-        const elapsedTime = Date.now() - startTime;
-        const progressPercentage = Math.min(elapsedTime / sessionDuration, 1);
-        setProgress(progressPercentage);
+      interval = setInterval(() => {
+        if (startTime) {
+          const elapsedTime = Date.now() - startTime;
+          const progressPercentage = Math.min(elapsedTime / sessionDuration, 1);
+          setProgress(progressPercentage);
 
-        if (progressPercentage >= 1) {
-          clearInterval(interval);
+          if (progressPercentage >= 1) {
+            clearInterval(interval!);
+          }
         }
       }, 1000);
-
-      return () => clearInterval(interval);
+    } else if (ButtonPressed) {
+      if (interval) clearInterval(interval); // Stop the progress when paused
     }
-  }, [ButtonPressed, isConnected]);
+
+    return () => {
+      if (interval) clearInterval(interval);
+    };
+  }, [ButtonPressed, isConnected, startTime]);
 
   const throttledSetAmplitude = useCallback(
     throttle((value) => {
