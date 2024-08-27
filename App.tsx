@@ -111,19 +111,19 @@ function ControlScreen({ isConnected, isReady, sendPauseCommand, sendResumeComma
   );
 }
 
-function ConnectionScreen({ scanDevices, disconnectDevice, isConnected, sendRestartCommand, connectedDevice, ButtonPressed }) {
+function ConnectionScreen({ scanDevices, disconnectDevice, isConnected, isReady, sendRestartCommand, connectionState }) {
   return (
     <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
       <View style={{ justifyContent: 'center', alignItems: 'center', marginVertical: 20 }}>
-        <Button title="Connect" onPress={scanDevices} disabled={isConnected} />
+        <Button title={connectionState} onPress={scanDevices} disabled={isConnected || connectionState === 'Connecting...'} />
       </View>
 
       <View style={{ justifyContent: 'center', alignItems: 'center', marginVertical: 20 }}>
-        <Button title="Disconnect" onPress={() => disconnectDevice(connectedDevice, ButtonPressed)} disabled={!isConnected} />
+        <Button title="Disconnect" onPress={disconnectDevice} disabled={!isConnected || !isReady} />
       </View>
 
       <View style={{ justifyContent: 'center', alignItems: 'center', marginVertical: 20 }}>
-        <Button title="Restart Session" onPress={sendRestartCommand} disabled={!isConnected} />
+        <Button title="Restart Session" onPress={sendRestartCommand} disabled={!isConnected || !isReady} />
       </View>
 
       <View style={{ justifyContent: 'center', alignItems: 'center', marginVertical: 20 }}>
@@ -141,6 +141,7 @@ export default function App() {
   const [ButtonPressed, setButtonPressed] = useState(false);
   const [isReady, setIsReady] = useState(false);
   const [batteryLevel, setBatteryLevel] = useState<number | null>(null); // State for battery level
+  const [connectionState, setConnectionState] = useState('Connect'); // State to manage connection button text
 
   useEffect(() => {
     if (connectedDevice && isReady) {
@@ -171,11 +172,13 @@ export default function App() {
   }
 
   async function scanDevices() {
+    setConnectionState('Connecting...');
     const { status } = await Location.requestForegroundPermissionsAsync();
     console.log('Permissions status:', status);
 
     if (status !== 'granted') {
       console.log('Permission to access location denied');
+      setConnectionState('Connect'); // Reset to 'Connect' if permission is denied
       return;
     }
 
@@ -184,6 +187,7 @@ export default function App() {
     BLTManager.startDeviceScan([TARGET_SERVICE_UUID], null, (error, scannedDevice) => {
       if (error) {
         console.warn('Device scan error:', error);
+        setConnectionState('Connect');  // Revert back to "Connect" if there's an error
         return;
       }
 
@@ -215,9 +219,10 @@ export default function App() {
       // Discover all services and characteristics
       await device.discoverAllServicesAndCharacteristics();
       console.log('Services and characteristics discovered');
-
+      
       // After discovering services and characteristics, mark the device as ready
       setIsReady(true);
+      setConnectionState('Connected'); // Set the connection button text to "Connected"
 
       // Set up characteristic monitoring
       device.monitorCharacteristicForService(
@@ -235,6 +240,7 @@ export default function App() {
       setupDisconnectionHandler(device);
     } catch (error) {
       console.error('Connection error:', error);
+      setConnectionState('Connect');  // Revert back to "Connect" if there's an error
     }
   }
 
@@ -249,11 +255,13 @@ export default function App() {
       setIsConnected(false);
       setConnectedDevice(null);
       setIsReady(false); // Mark the device as not ready
+      setConnectionState('Connect');  // Set the connection button text back to "Connect"
 
       // Optionally attempt to reconnect immediately
       const reconnected = await reconnectDevice();
       if (reconnected) {
         console.log('Reconnected after disconnection');
+        setConnectionState('Connected');
       } else {
         console.error('Failed to reconnect after disconnection');
       }
@@ -364,6 +372,7 @@ export default function App() {
         setIsConnected(false);
         setConnectedDevice(null);
         setIsReady(false); // Mark the device as not ready
+        setConnectionState('Connect');  // Set the connection button text back to "Connect"
       } catch (error) {
         if (error.errorCode === 201) {
           console.warn('Device was already disconnected or disconnected by the system.');
@@ -382,6 +391,7 @@ export default function App() {
         console.log('Reconnection successful');
         await connectedDevice.discoverAllServicesAndCharacteristics();
         setIsReady(true); // Mark the device as ready after reconnection
+        setConnectionState('Connected');  // Set the connection button text to "Connected"
       } catch (error) {
         console.error('Failed to reconnect:', error);
         return false; // Indicate that reconnection failed
@@ -412,9 +422,9 @@ export default function App() {
               scanDevices={scanDevices}
               disconnectDevice={disconnectDevice}
               isConnected={isConnected}
+              isReady={isReady}
               sendRestartCommand={sendRestartCommand}
-              connectedDevice={connectedDevice}
-              ButtonPressed={ButtonPressed}
+              connectionState={connectionState}  // Pass the connection state to the ConnectionScreen
             />
           )}
         </Tab.Screen>
