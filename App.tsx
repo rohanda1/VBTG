@@ -235,7 +235,10 @@ export default function App() {
 
     console.log('Scanning for devices');
 
-    BLTManager.startDeviceScan([TARGET_SERVICE_UUID_LH, TARGET_SERVICE_UUID_RH], null, (error, scannedDevice) => {
+    // Initialize the connection promises for both devices
+    const connectPromises = [];
+
+    BLTManager.startDeviceScan([TARGET_SERVICE_UUID_LH, TARGET_SERVICE_UUID_RH], null, async (error, scannedDevice) => {
       if (error) {
         console.warn('Device scan error:', error);
         setConnectionState('Connect'); // Revert back to "Connect" if there's an error
@@ -244,21 +247,29 @@ export default function App() {
 
       if (scannedDevice.serviceUUIDs?.includes(TARGET_SERVICE_UUID_LH)) {
         console.log(`Target LH device found:`, scannedDevice.name);
-        BLTManager.stopDeviceScan();
-        connectDevice(scannedDevice, 'LH');
+        connectPromises.push(connectDevice(scannedDevice, 'LH'));
       } else if (scannedDevice.serviceUUIDs?.includes(TARGET_SERVICE_UUID_RH)) {
         console.log(`Target RH device found:`, scannedDevice.name);
-        BLTManager.stopDeviceScan();
-        connectDevice(scannedDevice, 'RH');
+        connectPromises.push(connectDevice(scannedDevice, 'RH'));
       } else if (scannedDevice) {
         console.log(`Found device:`, scannedDevice.name || 'Unnamed Device');
         console.log('Service UUIDs:', scannedDevice.serviceUUIDs);
       }
     });
 
-    setTimeout(() => {
+    setTimeout(async () => {
       console.log('Stopping device scan');
       BLTManager.stopDeviceScan();
+
+      // Wait for all connection attempts to complete
+      await Promise.all(connectPromises);
+
+      if (isConnectedLH && isConnectedRH) {
+        setConnectionState('Connected');
+      } else {
+        setConnectionState('Connect');
+        console.warn('Not all devices were successfully connected.');
+      }
     }, 10000); // 10 seconds timeout
   }
 
@@ -283,7 +294,6 @@ export default function App() {
       
       // After discovering services and characteristics, mark the device as ready
       setIsReady(true);
-      setConnectionState('Connected');
 
       // Set up characteristic monitoring
       device.monitorCharacteristicForService(
@@ -301,7 +311,6 @@ export default function App() {
       setupDisconnectionHandler(device, deviceType);
     } catch (error) {
       console.error(`Connection error for ${deviceType}:`, error);
-      setConnectionState('Connect'); // Revert back to "Connect" if there's an error
     }
   }
 

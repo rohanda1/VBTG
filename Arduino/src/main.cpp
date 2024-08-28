@@ -223,6 +223,10 @@ void loop() {
       }
       delay(1000);  // Add a small delay to avoid busy-waiting
       Serial.println("Still paused...");
+      if (!BLE.advertise()) {
+        Serial.println("Restarting advertising while paused...");
+        BLE.advertise();  // Restart advertising if it has stopped
+      }
 
     }
   }
