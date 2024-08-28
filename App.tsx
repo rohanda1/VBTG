@@ -144,24 +144,15 @@ function ConnectionScreen({
   isConnected,
   isReady,
   sendRestartCommand,
-  connectionStateLH,
-  connectionStateRH,
+  connectionState,
 }) {
   return (
     <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
       <View style={{ justifyContent: 'center', alignItems: 'center', marginVertical: 20 }}>
         <Button
-          title={connectionStateLH}
-          onPress={() => scanDevices('LH')}
-          disabled={isConnected || connectionStateLH === 'Connecting...'}
-        />
-      </View>
-
-      <View style={{ justifyContent: 'center', alignItems: 'center', marginVertical: 20 }}>
-        <Button
-          title={connectionStateRH}
-          onPress={() => scanDevices('RH')}
-          disabled={isConnected || connectionStateRH === 'Connecting...'}
+          title={connectionState}
+          onPress={scanDevices}
+          disabled={isConnected || connectionState === 'Connecting...'}
         />
       </View>
 
@@ -191,8 +182,7 @@ export default function App() {
   const [isReady, setIsReady] = useState(false);
   const [batteryLevelLH, setBatteryLevelLH] = useState<number | null>(null);
   const [batteryLevelRH, setBatteryLevelRH] = useState<number | null>(null);
-  const [connectionStateLH, setConnectionStateLH] = useState('Connect');
-  const [connectionStateRH, setConnectionStateRH] = useState('Connect');
+  const [connectionState, setConnectionState] = useState('Connect');
 
   useEffect(() => {
     if (connectedDeviceLH && isReady) {
@@ -209,7 +199,7 @@ export default function App() {
 
     if (targetDevice) {
       targetDevice.monitorCharacteristicForService(
-        TARGET_SERVICE_UUID_LH,
+        device === 'LH' ? TARGET_SERVICE_UUID_LH : TARGET_SERVICE_UUID_RH,
         targetBatteryUUID,
         (error, characteristic) => {
           if (error) {
@@ -232,11 +222,7 @@ export default function App() {
     }
   }
 
-  async function scanDevices(device: 'LH' | 'RH') {
-    const setConnectionState = device === 'LH' ? setConnectionStateLH : setConnectionStateRH;
-    const setConnectedDevice = device === 'LH' ? setConnectedDeviceLH : setConnectedDeviceRH;
-    const targetServiceUUID = device === 'LH' ? TARGET_SERVICE_UUID_LH : TARGET_SERVICE_UUID_RH;
-
+  async function scanDevices() {
     setConnectionState('Connecting...');
     const { status } = await Location.requestForegroundPermissionsAsync();
     console.log('Permissions status:', status);
@@ -247,27 +233,31 @@ export default function App() {
       return;
     }
 
-    console.log(`Scanning for ${device} device`);
+    console.log('Scanning for devices');
 
-    BLTManager.startDeviceScan([targetServiceUUID], null, (error, scannedDevice) => {
+    BLTManager.startDeviceScan([TARGET_SERVICE_UUID_LH, TARGET_SERVICE_UUID_RH], null, (error, scannedDevice) => {
       if (error) {
         console.warn('Device scan error:', error);
         setConnectionState('Connect'); // Revert back to "Connect" if there's an error
         return;
       }
 
-      if (scannedDevice?.name && scannedDevice.serviceUUIDs?.includes(targetServiceUUID)) {
-        console.log(`Target ${device} device found:`, scannedDevice.name);
+      if (scannedDevice.serviceUUIDs?.includes(TARGET_SERVICE_UUID_LH)) {
+        console.log(`Target LH device found:`, scannedDevice.name);
         BLTManager.stopDeviceScan();
-        connectDevice(scannedDevice, device);
+        connectDevice(scannedDevice, 'LH');
+      } else if (scannedDevice.serviceUUIDs?.includes(TARGET_SERVICE_UUID_RH)) {
+        console.log(`Target RH device found:`, scannedDevice.name);
+        BLTManager.stopDeviceScan();
+        connectDevice(scannedDevice, 'RH');
       } else if (scannedDevice) {
-        console.log(`Found ${device} device:`, scannedDevice.name || 'Unnamed Device');
+        console.log(`Found device:`, scannedDevice.name || 'Unnamed Device');
         console.log('Service UUIDs:', scannedDevice.serviceUUIDs);
       }
     });
 
     setTimeout(() => {
-      console.log(`Stopping ${device} device scan`);
+      console.log('Stopping device scan');
       BLTManager.stopDeviceScan();
     }, 10000); // 10 seconds timeout
   }
@@ -293,19 +283,12 @@ export default function App() {
       
       // After discovering services and characteristics, mark the device as ready
       setIsReady(true);
-      if (deviceType === 'LH') {
-        setConnectionStateLH('Connected'); // Set the connection button text to "Connected"
-      } else {
-        setConnectionStateRH('Connected'); // Set the connection button text to "Connected"
-      }
+      setConnectionState('Connected');
 
       // Set up characteristic monitoring
-      const targetServiceUUID = deviceType === 'LH' ? TARGET_SERVICE_UUID_LH : TARGET_SERVICE_UUID_RH;
-      const targetButtonUUID = deviceType === 'LH' ? TARGET_BUTTON_UUID_LH : TARGET_BUTTON_UUID_RH;
-
       device.monitorCharacteristicForService(
-        targetServiceUUID,
-        targetButtonUUID,
+        deviceType === 'LH' ? TARGET_SERVICE_UUID_LH : TARGET_SERVICE_UUID_RH,
+        deviceType === 'LH' ? TARGET_BUTTON_UUID_LH : TARGET_BUTTON_UUID_RH,
         (error, characteristic) => {
           if (characteristic?.value != null) {
             setButtonPressed(base64.decode(characteristic.value) === '1');
@@ -318,11 +301,7 @@ export default function App() {
       setupDisconnectionHandler(device, deviceType);
     } catch (error) {
       console.error(`Connection error for ${deviceType}:`, error);
-      if (deviceType === 'LH') {
-        setConnectionStateLH('Connect'); // Revert back to "Connect" if there's an error
-      } else {
-        setConnectionStateRH('Connect');
-      }
+      setConnectionState('Connect'); // Revert back to "Connect" if there's an error
     }
   }
 
@@ -337,23 +316,18 @@ export default function App() {
       if (deviceType === 'LH') {
         setIsConnectedLH(false);
         setConnectedDeviceLH(null);
-        setConnectionStateLH('Connect');
       } else {
         setIsConnectedRH(false);
         setConnectedDeviceRH(null);
-        setConnectionStateRH('Connect');
       }
+      setConnectionState('Connect');
       setIsReady(false); // Mark the device as not ready
 
       // Optionally attempt to reconnect immediately
       const reconnected = await reconnectDevice(deviceType);
       if (reconnected) {
         console.log(`Reconnected ${deviceType} after disconnection`);
-        if (deviceType === 'LH') {
-          setConnectionStateLH('Connected');
-        } else {
-          setConnectionStateRH('Connected');
-        }
+        setConnectionState('Connected');
       } else {
         console.error(`Failed to reconnect ${deviceType} after disconnection`);
       }
@@ -477,17 +451,17 @@ export default function App() {
   async function disconnectDevice(isResumed: boolean) {
     console.log('Disconnecting start');
 
-    if ((connectedDeviceLH && connectedDeviceRH) !== null) {
+    if (connectedDeviceLH || connectedDeviceRH) {
       try {
         if (isResumed) {
           console.log('Devices are in resumed state, sending pause command before disconnecting');
-          await connectedDeviceLH.writeCharacteristicWithResponseForService(
+          await connectedDeviceLH?.writeCharacteristicWithResponseForService(
             TARGET_SERVICE_UUID_LH,
             TARGET_BUTTON_UUID_LH,
             base64.encode('1') // Send '1' to indicate pause
           );
 
-          await connectedDeviceRH.writeCharacteristicWithResponseForService(
+          await connectedDeviceRH?.writeCharacteristicWithResponseForService(
             TARGET_SERVICE_UUID_RH,
             TARGET_BUTTON_UUID_RH,
             base64.encode('1') // Send '1' to indicate pause
@@ -495,8 +469,8 @@ export default function App() {
 
           setButtonPressed(true); // Update UI to reflect paused state
         }
-        await connectedDeviceLH.cancelConnection();
-        await connectedDeviceRH.cancelConnection();
+        await connectedDeviceLH?.cancelConnection();
+        await connectedDeviceRH?.cancelConnection();
         console.log('Devices disconnected successfully');
 
         setIsConnectedLH(false);
@@ -504,8 +478,7 @@ export default function App() {
         setIsConnectedRH(false);
         setConnectedDeviceRH(null);
         setIsReady(false); // Mark the devices as not ready
-        setConnectionStateLH('Connect');
-        setConnectionStateRH('Connect');
+        setConnectionState('Connect');
       } catch (error) {
         if (error.errorCode === 201) {
           console.warn('Devices were already disconnected or disconnected by the system.');
@@ -525,11 +498,7 @@ export default function App() {
         console.log(`Reconnection successful for ${deviceType}`);
         await targetDevice.discoverAllServicesAndCharacteristics();
         setIsReady(true); // Mark the devices as ready after reconnection
-        if (deviceType === 'LH') {
-          setConnectionStateLH('Connected');
-        } else {
-          setConnectionStateRH('Connected');
-        }
+        setConnectionState('Connected');
       } catch (error) {
         console.error(`Failed to reconnect ${deviceType}:`, error);
         return false; // Indicate that reconnection failed
@@ -563,8 +532,7 @@ export default function App() {
               isConnected={isConnectedLH && isConnectedRH}
               isReady={isReady}
               sendRestartCommand={sendRestartCommand}
-              connectionStateLH={connectionStateLH} // Pass the connection state to the ConnectionScreen
-              connectionStateRH={connectionStateRH} // Pass the connection state to the ConnectionScreen
+              connectionState={connectionState} // Pass the connection state to the ConnectionScreen
             />
           )}
         </Tab.Screen>

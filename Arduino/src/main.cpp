@@ -72,7 +72,7 @@ void restartSession(){
   while (1);
   }
   // Set device name
-//  BLE.setLocalName("Nano33BLEExample");
+  BLE.setLocalName(LOCAL_NAME);
 //  Serial.println("Local name set to Nano33BLEExample.");
   BLE.setAdvertisedService(customService);
   // Add characteristics to the service
