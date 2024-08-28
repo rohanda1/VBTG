@@ -5,6 +5,7 @@
  * Address of DA7280- 0x4A
  */
 
+#include "ConfigRHDevice.h"
 #include <Wire.h> 
 #include "Haptic_Driver.h"
 #include "Arduino.h"
@@ -18,8 +19,11 @@ uint8_t amplitude = 0; // Global variable to store the amplitude value
 const unsigned int BATTERY_CAPACITY = 850; // e.g. 800mAh battery
 
 
+
+
 // BLE SECTION
-BLEService customService("4fafc201-1fb5-459e-8fcc-c5c9c331914b"); //Service UUID
+/*
+BLEService customService("4fafc201-1fb5-459e-8fcc-c5c9c331914b"); //Service UUID Device LH
 
 BLECharacteristic amplitudeCharacteristic("6d68efe5-04b6-4a85-abc4-c2670b7bf7fd", //amplitude UUID
                                        BLERead | BLEWrite | BLENotify, 20);
@@ -29,6 +33,7 @@ BLECharacteristic batteryCharacteristic("a8d41af6-cada-44fb-ba9a-d43c7d7a9dbe", 
                                     BLERead | BLEWrite | BLENotify, 20);
 BLECharacteristic restartCharacteristic("197ca73c-4f56-4021-bb56-0885cb13f23a", //Restart UUID
                                     BLERead | BLEWrite | BLENotify, 20);    
+*/
 
 bool shouldRestart = false;
 int event = 0;

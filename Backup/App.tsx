@@ -17,15 +17,20 @@ import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { throttle } from 'lodash';  // Import lodash throttle
 import * as Progress from 'react-native-progress';  // Import the progress bar library
 
-
 const BLTManager = new BleManager();
 
-const TARGET_SERVICE_UUID = '4fafc201-1fb5-459e-8fcc-c5c9c331914b';
-const TARGET_BUTTON_UUID = 'f27b53ad-c63d-49a0-8c0f-9f297e6cc520';
-const TARGET_AMPLITUDE_UUID = '6d68efe5-04b6-4a85-abc4-c2670b7bf7fd';
-const TARGET_BATTERY_UUID = 'a8d41af6-cada-44fb-ba9a-d43c7d7a9dbe';
-const TARGET_RESTART_UUID = '197ca73c-4f56-4021-bb56-0885cb13f23a'; 
-const TARGET_SESSION_LENGTH_UUID = ''; 
+const TARGET_SERVICE_UUID_LH = '4fafc201-1fb5-459e-8fcc-c5c9c331914b';
+const TARGET_BUTTON_UUID_LH = 'f27b53ad-c63d-49a0-8c0f-9f297e6cc520';
+const TARGET_AMPLITUDE_UUID_LH = '6d68efe5-04b6-4a85-abc4-c2670b7bf7fd';
+const TARGET_BATTERY_UUID_LH = 'a8d41af6-cada-44fb-ba9a-d43c7d7a9dbe';
+const TARGET_RESTART_UUID_LH = '197ca73c-4f56-4021-bb56-0885cb13f23a';
+
+const TARGET_SERVICE_UUID_RH = 'f8f50907-0483-48e0-b3d5-838da04e71a6';
+const TARGET_BUTTON_UUID_RH = '4d689fa6-af9c-4a4f-a0ca-97859622a50d';
+const TARGET_AMPLITUDE_UUID_RH = 'ca50748e-5b91-4c50-8073-8c6572eaa97c';
+const TARGET_BATTERY_UUID_RH = '58526da4-6c23-4428-8c21-620e012002ad';
+const TARGET_RESTART_UUID_RH = '6db2e539-ba05-498a-a108-8f149e54493b';
+const TARGET_SESSION_LENGTH_UUID = '';  // Define this as needed
 
 if (__DEV__) {
   console.log('Running in development mode');
@@ -37,25 +42,36 @@ function ControlScreen({ isConnected, isReady, sendPauseCommand, sendResumeComma
   const [amplitude, setAmplitudeValue] = useState(50); // Initialize with a default amplitude value
   const [progress, setProgress] = useState(0); // State for progress
   const sessionDuration = 120 * 60 * 1000; // 2 hours in milliseconds
-  // Throttle the setAmplitude function to prevent rapid BLE commands
+  const [startTime, setStartTime] = useState<number | null>(null); // State for session start time
+
   useEffect(() => {
-    if (ButtonPressed === false && isConnected) {
-      const startTime = Date.now();
+    let interval: NodeJS.Timeout | null = null;
 
-      const interval = setInterval(() => {
-        const elapsedTime = Date.now() - startTime;
-        const progressPercentage = Math.min(elapsedTime / sessionDuration, 1);
-        setProgress(progressPercentage);
+    if (!ButtonPressed && isConnected) {
+      if (!startTime) {
+        setStartTime(Date.now()); // Start the session timer when the device is resumed
+      }
 
-        if (progressPercentage >= 1) {
-          clearInterval(interval);
+      interval = setInterval(() => {
+        if (startTime) {
+          const elapsedTime = Date.now() - startTime;
+          const progressPercentage = Math.min(elapsedTime / sessionDuration, 1);
+          setProgress(progressPercentage);
+
+          if (progressPercentage >= 1) {
+            clearInterval(interval!);
+          }
         }
       }, 1000);
-
-      return () => clearInterval(interval);
+    } else if (ButtonPressed) {
+      if (interval) clearInterval(interval); // Stop the progress when paused
     }
-  }, [ButtonPressed, isConnected]);
-  
+
+    return () => {
+      if (interval) clearInterval(interval);
+    };
+  }, [ButtonPressed, isConnected, startTime]);
+
   const throttledSetAmplitude = useCallback(
     throttle((value) => {
       if (isConnected && isReady) {
@@ -100,32 +116,31 @@ function ControlScreen({ isConnected, isReady, sendPauseCommand, sendResumeComma
         <Text style={styles.baseText}>{ButtonPressed ? 'Paused' : 'Running'}</Text>
       </View>
 
-
       <View style={{ justifyContent: 'center', alignItems: 'center', marginVertical: 20 }}>
         <Text>Battery Level: {batteryLevel}%</Text>
       </View>
 
       <View style={{ justifyContent: 'center', alignItems: 'center', marginVertical: 20 }}>
-        <Text>Sessions Progress</Text>
+        <Text>Session Progress</Text>
         <Progress.Bar progress={progress} width={200} />
       </View>
     </View>
   );
 }
 
-function ConnectionScreen({ scanDevices, disconnectDevice, isConnected, sendRestartCommand, connectedDevice, ButtonPressed }) {
+function ConnectionScreen({ scanDevices, disconnectDevice, isConnected, isReady, sendRestartCommand, connectionState }) {
   return (
     <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
       <View style={{ justifyContent: 'center', alignItems: 'center', marginVertical: 20 }}>
-        <Button title="Connect" onPress={scanDevices} disabled={isConnected} />
+        <Button title={connectionState} onPress={scanDevices} disabled={isConnected || connectionState === 'Connecting...'} />
       </View>
 
       <View style={{ justifyContent: 'center', alignItems: 'center', marginVertical: 20 }}>
-        <Button title="Disconnect" onPress={() => disconnectDevice(connectedDevice, !ButtonPressed)} disabled={!isConnected} />
+        <Button title="Disconnect" onPress={disconnectDevice} disabled={!isConnected || !isReady} />
       </View>
 
       <View style={{ justifyContent: 'center', alignItems: 'center', marginVertical: 20 }}>
-        <Button title="Restart Session" onPress={sendRestartCommand} disabled={!isConnected} />
+        <Button title="Restart Session" onPress={sendRestartCommand} disabled={!isConnected || !isReady} />
       </View>
 
       <View style={{ justifyContent: 'center', alignItems: 'center', marginVertical: 20 }}>
@@ -143,6 +158,7 @@ export default function App() {
   const [ButtonPressed, setButtonPressed] = useState(false);
   const [isReady, setIsReady] = useState(false);
   const [batteryLevel, setBatteryLevel] = useState<number | null>(null); // State for battery level
+  const [connectionState, setConnectionState] = useState('Connect'); // State to manage connection button text
 
   useEffect(() => {
     if (connectedDevice && isReady) {
@@ -171,12 +187,15 @@ export default function App() {
       );
     }
   }
+
   async function scanDevices() {
+    setConnectionState('Connecting...');
     const { status } = await Location.requestForegroundPermissionsAsync();
     console.log('Permissions status:', status);
 
     if (status !== 'granted') {
       console.log('Permission to access location denied');
+      setConnectionState('Connect'); // Reset to 'Connect' if permission is denied
       return;
     }
 
@@ -185,6 +204,7 @@ export default function App() {
     BLTManager.startDeviceScan([TARGET_SERVICE_UUID], null, (error, scannedDevice) => {
       if (error) {
         console.warn('Device scan error:', error);
+        setConnectionState('Connect');  // Revert back to "Connect" if there's an error
         return;
       }
 
@@ -219,6 +239,7 @@ export default function App() {
       
       // After discovering services and characteristics, mark the device as ready
       setIsReady(true);
+      setConnectionState('Connected'); // Set the connection button text to "Connected"
 
       // Set up characteristic monitoring
       device.monitorCharacteristicForService(
@@ -236,11 +257,12 @@ export default function App() {
       setupDisconnectionHandler(device);
     } catch (error) {
       console.error('Connection error:', error);
+      setConnectionState('Connect');  // Revert back to "Connect" if there's an error
     }
   }
 
   function setupDisconnectionHandler(device: Device) {
-    device.onDisconnected((error, device) => {
+    device.onDisconnected(async (error, device) => {
       if (error) {
         console.error('Device disconnected with error:', error.message);
       } else {
@@ -250,15 +272,16 @@ export default function App() {
       setIsConnected(false);
       setConnectedDevice(null);
       setIsReady(false); // Mark the device as not ready
+      setConnectionState('Connect');  // Set the connection button text back to "Connect"
 
       // Optionally attempt to reconnect immediately
-      reconnectDevice().then(isConnected => {
-        if (isConnected) {
-          console.log('Reconnected after disconnection');
-        } else {
-          console.error('Failed to reconnect after disconnection');
-        }
-      });
+      const reconnected = await reconnectDevice();
+      if (reconnected) {
+        console.log('Reconnected after disconnection');
+        setConnectionState('Connected');
+      } else {
+        console.error('Failed to reconnect after disconnection');
+      }
     });
   }
 
@@ -353,7 +376,7 @@ export default function App() {
       try {
         if (isResumed) {
           console.log('Device is in resumed state, sending pause command before disconnecting');
-          await device.writeCharacteristicWithResponseForService(
+          await connectedDevice.writeCharacteristicWithResponseForService(
             TARGET_SERVICE_UUID,
             TARGET_BUTTON_UUID,
             base64.encode('1') // Send '1' to indicate pause
@@ -366,6 +389,7 @@ export default function App() {
         setIsConnected(false);
         setConnectedDevice(null);
         setIsReady(false); // Mark the device as not ready
+        setConnectionState('Connect');  // Set the connection button text back to "Connect"
       } catch (error) {
         if (error.errorCode === 201) {
           console.warn('Device was already disconnected or disconnected by the system.');
@@ -384,6 +408,7 @@ export default function App() {
         console.log('Reconnection successful');
         await connectedDevice.discoverAllServicesAndCharacteristics();
         setIsReady(true); // Mark the device as ready after reconnection
+        setConnectionState('Connected');  // Set the connection button text to "Connected"
       } catch (error) {
         console.error('Failed to reconnect:', error);
         return false; // Indicate that reconnection failed
@@ -414,7 +439,9 @@ export default function App() {
               scanDevices={scanDevices}
               disconnectDevice={disconnectDevice}
               isConnected={isConnected}
-              sendRestartCommand={sendRestartCommand} // Pass the restart command function to the connection screen
+              isReady={isReady}
+              sendRestartCommand={sendRestartCommand}
+              connectionState={connectionState}  // Pass the connection state to the ConnectionScreen
             />
           )}
         </Tab.Screen>
