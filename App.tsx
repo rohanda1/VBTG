@@ -200,7 +200,8 @@ export default function App() {
     if (targetDevice) {
       targetDevice.monitorCharacteristicForService(
         device === 'LH' ? TARGET_SERVICE_UUID_LH : TARGET_SERVICE_UUID_RH,
-        targetBatteryUUID,
+        device === 'LH' ? TARGET_BATTERY_UUID_LH : TARGET_BATTERY_UUID_RH,
+
         (error, characteristic) => {
           if (error) {
             console.error('Battery level monitoring error:', error);
@@ -379,13 +380,15 @@ export default function App() {
         await connectedDeviceLH.writeCharacteristicWithResponseForService(
           TARGET_SERVICE_UUID_LH,
           TARGET_BUTTON_UUID_LH,
-          base64.encode('1') // Send '1' to indicate pause
+          base64.encode('1'), // Send '1' to indicate pause
+          console.log('Pause commnand sent to LH')
         );
 
         await connectedDeviceRH.writeCharacteristicWithResponseForService(
           TARGET_SERVICE_UUID_RH,
           TARGET_BUTTON_UUID_RH,
-          base64.encode('1') // Send '1' to indicate pause
+          base64.encode('1'), // Send '1' to indicate pause
+          console.log('Pause commnand sent to RH')
         );
 
         setButtonPressed(true);

@@ -179,7 +179,8 @@ void loop() {
 
   // Write the byte array to the battery characteristic
   batteryCharacteristic.writeValue(batteryBytes, sizeof(batteryBytes));
-  
+  // batteryCharacteristic.writeValue(static_cast<uint8_t>(1), static_cast<size_t>(1));
+
   Serial.print("Battery Level: ");
   Serial.println(soc);
   int length = amplitudeCharacteristic.readValue(amplitudeValue, sizeof(amplitudeValue));  // Read the BLE characteristic value
