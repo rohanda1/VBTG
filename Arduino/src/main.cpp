@@ -18,7 +18,13 @@ uint8_t amplitudeValue[20];  // Buffer to hold the received value
 uint8_t amplitude = 0; // Global variable to store the amplitude value
 const unsigned int BATTERY_CAPACITY = 850; // e.g. 800mAh battery
 
+unsigned long pauseStartMillis = 0;
+unsigned long pauseDuration = 1000;  // Duration of pause during button press in milliseconds
+bool isPaused = false;
 
+unsigned long cycleDelayStartMillis = 0;
+unsigned long cycleDelayDuration = 1500;  // Duration of delay every third cycle in milliseconds
+bool cycleDelayActive = false;
 
 
 // BLE SECTION
@@ -159,16 +165,16 @@ void setup() {
 }
 
 void loop() {
-  Serial.println("Looping...");
+ Serial.println("Looping...");
   // Keep checking BLE central connection
   BLE.poll();
-//  cycle_count*3.32/7200;
-      if (restartCharacteristic.written()) {
-      uint8_t command = *restartCharacteristic.value();  // Dereferencing the pointer to get the actual value
-      if (command == '1') {
-        Serial.println("Restart command received. Restarting session...");
-        command ='0';
-        restartSession();
+
+  if (restartCharacteristic.written()) {
+    uint8_t command = *restartCharacteristic.value();  // Dereferencing the pointer to get the actual value
+    if (command == '1') {
+      Serial.println("Restart command received. Restarting session...");
+      command = '0';
+      restartSession();
     }
   }
 
@@ -179,7 +185,6 @@ void loop() {
 
   // Write the byte array to the battery characteristic
   batteryCharacteristic.writeValue(batteryBytes, sizeof(batteryBytes));
-  // batteryCharacteristic.writeValue(static_cast<uint8_t>(1), static_cast<size_t>(1));
 
   Serial.print("Battery Level: ");
   Serial.println(soc);
@@ -198,37 +203,42 @@ void loop() {
     Serial.print("Converted amplitude value: ");
     Serial.println(amplitude);  // Print the converted integer value
   }
-  
 
-  // Read the current value of the box characteristic
-  boxCharacteristic.readValue(boxValue, 1); // Read the value of the box characteristic into the boxValue array
+  boxCharacteristic.readValue(boxValue, 1);  // Read the value of the box characteristic into the boxValue array
   Serial.print("boxValue[0]: ");
   Serial.println(boxValue[0]);
-  // Check if the button is pressed by comparing the first element of boxValue to 1
+
   bool isButtonPressed = (boxValue[0] == '1');
   Serial.print("isButtonPressed: ");
   Serial.println(isButtonPressed);
 
-  if (isButtonPressed) {
+  if (isButtonPressed && !isPaused) {
+    // If button is pressed and not already paused, start pause
     Serial.println("Pause command received. Pausing the loop...");
-    while (isButtonPressed) {
-      BLE.poll();
+    pauseStartMillis = millis();  // Record the time when pause started
+    isPaused = true;
+  }
+
+  if (isPaused) {
+    // If currently paused, check if pause duration has elapsed
+    if (millis() - pauseStartMillis >= pauseDuration) {
       boxCharacteristic.readValue(boxValue, 1);
-      hapDrive.clearIrq(event);        // Clearing error 
+      hapDrive.clearIrq(event);  // Clearing error
       hapDrive.setVibrate(0);
-      Serial.print("Reading characteristic value: ");
-      Serial.println(boxValue[0]);
+
       if (boxValue[0] == '0') {
         Serial.println("Resume command received. Resuming the loop...");
-        break; // Exit the loop when the button is released
+        isPaused = false;  // Exit pause
+      } else {
+        Serial.println("Still paused...");
+        if (!BLE.advertise()) {
+          Serial.println("Restarting advertising while paused...");
+          BLE.advertise();  // Restart advertising if it has stopped
+        }
+        pauseStartMillis = millis();  // Reset pause timer to continue waiting
       }
-      delay(1000);  // Add a small delay to avoid busy-waiting
-      Serial.println("Still paused...");
-      if (!BLE.advertise()) {
-        Serial.println("Restarting advertising while paused...");
-        BLE.advertise();  // Restart advertising if it has stopped
-      }
-
+    } else {
+      return;  // Exit loop early if still in pause
     }
   }
 
@@ -241,40 +251,45 @@ void loop() {
     for (int i = 0; i < bus_count; i++) {
       if (randbus == exclusion[i]) {
         isDuplicate = true;
-        break; // Exit the loop if a duplicate is found
+        break;  // Exit the loop if a duplicate is found
       }
     }
     if (!isDuplicate) {
       TCA9544A(randbus);
       while (millis() - previousMillis < interval) {
         event = hapDrive.getIrqEvent();  // If uploading often the Haptic Driver IC will throw a fault
-        hapDrive.clearIrq(event);        // Clearing error 
-        int LRA_Amplitude= mapAmplitude(amplitude);
+        hapDrive.clearIrq(event);  // Clearing error
+        int LRA_Amplitude = mapAmplitude(amplitude);
         hapDrive.setVibrate(LRA_Amplitude);
         float zAcceleration = readZAcceleration();
-        /*
-        Serial.print("Z Acceleration: "); 
-        Serial.print(zAcceleration); 
-        Serial.println(" g");
-        Serial.print("Z Acceleration (16-bit binary): ");
-        Serial.print(zAcceleration, BIN);
-        Serial.println(" g");
-        */
       }
       while (millis() - previousMillis > interval) {
         hapDrive.setVibrate(0);
-        delay(30);
-        previousMillis = millis(); // Save the last time LRA was triggered
+        delay(30);  // This short delay might still be needed for synchronization
+        previousMillis = millis();  // Save the last time LRA was triggered
       }
       exclusion[bus_count] = randbus;
       bus_count++;
     }
   }
+
   cycle_count++;
-  if (cycle_count % 3 == 0) {
-    delay(1500);
-    previousMillis = millis(); // Reset previousMillis
-  }  
+  if (cycle_count % 3 == 0 && !cycleDelayActive) {
+    // If it's the third cycle and delay is not already active
+    Serial.println("Starting cycle delay...");
+    cycleDelayStartMillis = millis();
+    cycleDelayActive = true;
+  }
+
+  if (cycleDelayActive) {
+    if (millis() - cycleDelayStartMillis >= cycleDelayDuration) {
+      Serial.println("Cycle delay finished. Resuming operations...");
+      cycleDelayActive = false;
+      previousMillis = millis();  // Reset previousMillis after the delay
+    } else {
+      return;  // Exit loop early if still in cycle delay
+    }
+  }
 }
 
 
