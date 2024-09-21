@@ -1,9 +1,3 @@
-/*
- * Finger boards work when plugged into external SCL/SDA line from another arduino
- * Finger boards work when SCL/SDA is directly inputted into I2C mux output
- * Test board works when I2C Mux input pull up resistors are bypassed   
- * Address of DA7280- 0x4A
- */
 
 #include "ConfigLHDevice.h"
 #include <Wire.h> 

@@ -23,9 +23,14 @@ int bus_count = 0;                // Counter for selected buses
 void TCA9544A(int bus) {
   Wire.beginTransmission(0x70);  // TCA9544A address
   Wire.write(0x4 | bus);
-  Wire.endTransmission();
+  byte error = Wire.endTransmission();
+  
+  // Check for I2C errors
+  if (error) {
+    Serial.print("Error selecting bus ");
+    Serial.println(bus);
+  }
 }
-
 void selectBus() {
   int randbus = random(3, 7);
   bool isDuplicate = false;
@@ -43,9 +48,18 @@ void selectBus() {
     TCA9544A(randbus);
     exclusion[bus_count] = randbus; // Store the selected bus
     bus_count++;
+    event = hapDrive.getIrqEvent();       //If uploading often the Haptic Driver IC will throw a fault
+    hapDrive.clearIrq(event);             //Clearing error 
     hapDrive.setVibrate(127);       // Start vibration
     stateStartTime = millis();      // Record the time when vibration started
+    Serial.print("Bus ");
+    Serial.print(randbus);
+    Serial.println(" vibrating...");
     currentState = VIBRATE;         // Transition to VIBRATE state
+  } else {
+    Serial.print("Duplicate bus ");
+    Serial.print(randbus);
+    Serial.println(" selected, choosing another.");
   }
 }
 
@@ -96,13 +110,21 @@ void setup() {
 }
 
 void loop() {
+  if (currentState == FINISHED) {
+    return;
+  }
+
   switch (currentState) {
     case SELECT_BUS:
       if (bus_count >= 4) {
         bus_count = 0;
         currentCycle++;
+        Serial.print("Completed cycle ");
+        Serial.println(currentCycle);
         if (currentCycle >= totalCycles) {
           currentState = PAUSE;
+          stateStartTime = millis();
+          Serial.println("Pausing...");
         } else {
           currentState = SELECT_BUS;
         }
@@ -114,6 +136,7 @@ void loop() {
     case VIBRATE:
       if (millis() - stateStartTime >= vibrateDuration) {
         hapDrive.setVibrate(0); // Stop vibration
+        Serial.println("Vibration stopped");
         stateStartTime = millis();
         currentState = STOP_VIBRATE;
       }
@@ -121,6 +144,7 @@ void loop() {
 
     case STOP_VIBRATE:
       if (millis() - stateStartTime >= stopDuration) {
+        Serial.println("Ready to select new bus");
         currentState = SELECT_BUS;
       }
       break;
@@ -130,17 +154,13 @@ void loop() {
         currentCycle = 0;           // Reset the cycle count
         stateStartTime = millis();  // Reset the pause timer
         currentState = SELECT_BUS;  // Restart the process
+        Serial.println("Resuming cycles...");
       }
       break;
-
-    case FINISHED:
-      // Sequence finished, nothing to do
-      return;
 
     default:
       currentState = SELECT_BUS;
       break;
   }
 }
-
 
